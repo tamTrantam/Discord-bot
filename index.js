@@ -465,6 +465,7 @@ client.on('interactionCreate', async interaction => {
                     }
 
                     const sessionId = `${interaction.user.id}_${Date.now()}`;
+                    console.log(`🔍 [SEARCH DEBUG] Creating session: ${sessionId}`);
                     interaction.client.searchSessions.set(sessionId, {
                         userId: interaction.user.id,
                         query: query,
@@ -472,6 +473,7 @@ client.on('interactionCreate', async interaction => {
                         currentPage: 0,
                         timestamp: Date.now()
                     });
+                    console.log(`🔍 [SEARCH DEBUG] Session created. Total sessions: ${interaction.client.searchSessions.size}`);
 
                     // Create search interface directly
                     const embed = await searchCommand.createSearchEmbed(results, query, 0, results.length);

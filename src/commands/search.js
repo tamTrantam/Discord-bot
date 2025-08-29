@@ -167,16 +167,26 @@ module.exports = {
     },
 
     async handleSelection(interaction, client, customId) {
+        console.log(`🔍 [SEARCH DEBUG] Button clicked: ${customId}`);
         const parts = customId.split('_');
         const sessionId = parts.slice(1, -1).join('_');
         const resultIndex = parseInt(parts[parts.length - 1]);
         
+        console.log(`🔍 [SEARCH DEBUG] Parsed sessionId: ${sessionId}, resultIndex: ${resultIndex}`);
+        console.log(`🔍 [SEARCH DEBUG] Available sessions: ${client.searchSessions ? client.searchSessions.size : 0}`);
+        
         const session = client.searchSessions?.get(sessionId);
         if (!session) {
-            return interaction.reply({
-                content: '❌ Search session expired. Please search again.',
-                ephemeral: true
-            });
+            console.log(`🔍 [SEARCH DEBUG] Session not found! Available: ${Array.from(client.searchSessions?.keys() || []).join(', ')}`);
+            try {
+                return await interaction.reply({
+                    content: '❌ Search session expired. Please search again.',
+                    ephemeral: true
+                });
+            } catch (error) {
+                console.log('🧹 [SEARCH DEBUG] Could not reply about expired session:', error.message);
+                return;
+            }
         }
 
         if (session.userId !== interaction.user.id) {
@@ -196,12 +206,8 @@ module.exports = {
 
         // Add to queue using the play command logic
         try {
-            // IMMEDIATELY acknowledge the interaction to prevent timeout
-            await interaction.update({
-                content: '🎵 Adding song to queue...',
-                embeds: [],
-                components: []
-            });
+            // IMMEDIATELY defer the interaction to prevent timeout
+            await interaction.deferReply({ ephemeral: true });
 
             const playCommand = client.commands.get('play');
             if (playCommand) {
