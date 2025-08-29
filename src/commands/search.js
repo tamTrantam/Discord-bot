@@ -39,7 +39,32 @@ module.exports = {
         console.log(`🔍 [SEARCH] Starting search for: "${query}"`);
         
         try {
-            const command = `yt-dlp "ytsearch10:${query}" --get-title --get-url --get-duration --no-playlist --flat-playlist`;
+            // Try different yt-dlp paths for different deployment environments
+            const ytdlpPaths = [
+                'yt-dlp',                    // Standard PATH
+                '/usr/local/bin/yt-dlp',     // Common install location
+                '/opt/render/project/.local/bin/yt-dlp', // User local install
+                'python3 -m yt_dlp'         // Python module fallback
+            ];
+            
+            let command = null;
+            for (const ytdlpPath of ytdlpPaths) {
+                try {
+                    const testCommand = `${ytdlpPath} --version`;
+                    await execPromise(testCommand, { timeout: 5000 });
+                    command = `${ytdlpPath} "ytsearch10:${query}" --get-title --get-url --get-duration --no-playlist --flat-playlist`;
+                    console.log(`🔍 [SEARCH] Using yt-dlp path: ${ytdlpPath}`);
+                    break;
+                } catch (testError) {
+                    console.log(`🔍 [SEARCH] ${ytdlpPath} not available`);
+                    continue;
+                }
+            }
+            
+            if (!command) {
+                throw new Error('yt-dlp not found in any expected location');
+            }
+            
             console.log(`🔍 [SEARCH] Running command: ${command}`);
             
             const { stdout, stderr } = await execPromise(command, { 

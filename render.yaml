@@ -3,7 +3,17 @@ services:
     name: discord-music-bot
     env: node
     plan: free
-    buildCommand: npm ci --only=production --no-audit --no-fund && pip3 install --no-cache-dir yt-dlp
+    buildCommand: |
+      echo "Installing Node.js dependencies..."
+      npm ci --only=production --no-audit --no-fund
+      echo "Installing Python and yt-dlp..."
+      python3 -m pip install --user --upgrade pip
+      python3 -m pip install --user yt-dlp
+      echo "Verifying yt-dlp installation..."
+      export PATH="$HOME/.local/bin:$PATH"
+      which yt-dlp || echo "yt-dlp not in PATH, checking user local bin..."
+      ls -la $HOME/.local/bin/ | grep yt-dlp || echo "yt-dlp not found in local bin"
+      $HOME/.local/bin/yt-dlp --version || python3 -m yt_dlp --version || echo "yt-dlp test failed"
     startCommand: node index.js
     envVars:
       - key: NODE_ENV
@@ -12,6 +22,8 @@ services:
         generateValue: true
       - key: NPM_CONFIG_PRODUCTION
         value: true
+      - key: PATH
+        value: $HOME/.local/bin:/usr/local/bin:/usr/bin:/bin
     healthCheckPath: /
     autoDeploy: true
     runtime: node
