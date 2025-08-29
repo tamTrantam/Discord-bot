@@ -4,7 +4,14 @@ services:
     env: node
     plan: free
     buildCommand: |
-      echo "=== Installing Node.js dependencies (including yt-dlp-exec) ==="
+      echo "=== Installing system dependencies ==="
+      apt-get update && apt-get install -y python3 python3-pip
+      echo "=== Installing yt-dlp ==="
+      pip3 install yt-dlp
+      echo "=== Verifying yt-dlp installation ==="
+      yt-dlp --version
+      which yt-dlp
+      echo "=== Installing Node.js dependencies ==="
       npm ci --only=production --no-audit --no-fund
       echo "=== Build completed successfully ==="
     startCommand: node index.js

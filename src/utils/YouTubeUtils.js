@@ -1,6 +1,5 @@
-const ytdl = require('ytdl-core');
+const { execSync } = require('child_process');
 const YouTube = require('youtube-sr').default;
-const ytDlpExec = require('yt-dlp-exec');
 
 // Debug mode from environment
 const DEBUG_MODE = process.env.DEBUG_MODE === 'true';
@@ -19,11 +18,11 @@ function debugLog(message, data = null) {
 class YouTubeUtils {
     constructor() {
         this.debug = debugLog;
-        this.currentMethod = 'pure-nodejs';
+        this.currentMethod = 'yt-dlp-direct';
     }
 
     /**
-     * Get video information using ytdl-core
+     * Get video information using yt-dlp directly
      * @param {string} url - YouTube video URL
      * @returns {Promise<Object>} Video information
      */
@@ -35,46 +34,49 @@ class YouTubeUtils {
         try {
             debugLog(`Getting video info for: ${url}`);
             
-            // Validate YouTube URL
+            // Validate YouTube URL format
             console.log(`🎥 [YOUTUBE DEBUG] Validating URL...`);
-            const isValid = ytdl.validateURL(url);
-            console.log(`🎥 [YOUTUBE DEBUG] URL validation result: ${isValid}`);
-            
-            if (!isValid) {
+            if (!this.isValidYouTubeUrl(url)) {
                 console.log(`🎥 [YOUTUBE DEBUG] ❌ Invalid YouTube URL format`);
                 throw new Error('Invalid YouTube URL');
             }
             
-            // Get video info using ytdl-core
-            console.log(`🎥 [YOUTUBE DEBUG] Calling ytdl.getInfo()...`);
+            // Use yt-dlp to get video information
+            console.log(`🎥 [YOUTUBE DEBUG] Calling yt-dlp --dump-json...`);
             const startTime = Date.now();
             
-            const info = await ytdl.getInfo(url);
+            const command = `yt-dlp --dump-json --no-download "${url}"`;
+            console.log(`🎥 [YOUTUBE DEBUG] Command: ${command}`);
+            
+            const output = execSync(command, { 
+                encoding: 'utf8',
+                timeout: 30000, // 30 second timeout
+                maxBuffer: 1024 * 1024 * 10 // 10MB buffer
+            });
+            
             const endTime = Date.now();
+            console.log(`🎥 [YOUTUBE DEBUG] yt-dlp completed in ${endTime - startTime}ms`);
             
-            console.log(`🎥 [YOUTUBE DEBUG] ytdl.getInfo() completed in ${endTime - startTime}ms`);
-            console.log(`🎥 [YOUTUBE DEBUG] Info object received:`, !!info);
+            const videoData = JSON.parse(output);
+            console.log(`🎥 [YOUTUBE DEBUG] Video data parsed successfully`);
             
-            const videoDetails = info.videoDetails;
-            console.log(`🎥 [YOUTUBE DEBUG] Video details available:`, !!videoDetails);
-            
-            if (!videoDetails) {
-                console.log(`🎥 [YOUTUBE DEBUG] ❌ No video details in response`);
-                throw new Error('No video details found');
+            if (!videoData) {
+                console.log(`🎥 [YOUTUBE DEBUG] ❌ No video data in response`);
+                throw new Error('No video data found');
             }
             
-            console.log(`🎥 [YOUTUBE DEBUG] Title: "${videoDetails.title}"`);
-            console.log(`🎥 [YOUTUBE DEBUG] Duration: ${videoDetails.lengthSeconds}s`);
-            console.log(`🎥 [YOUTUBE DEBUG] Author: ${videoDetails.author?.name}`);
+            console.log(`🎥 [YOUTUBE DEBUG] Title: "${videoData.title}"`);
+            console.log(`🎥 [YOUTUBE DEBUG] Duration: ${videoData.duration}s`);
+            console.log(`🎥 [YOUTUBE DEBUG] Uploader: ${videoData.uploader}`);
             
             const result = {
-                title: videoDetails.title || 'Unknown Title',
-                duration: parseInt(videoDetails.lengthSeconds) || 0,
-                uploader: videoDetails.author?.name || 'Unknown Artist',
+                title: videoData.title || 'Unknown Title',
+                duration: parseInt(videoData.duration) || 0,
+                uploader: videoData.uploader || videoData.channel || 'Unknown Artist',
                 url: url,
-                thumbnail: videoDetails.thumbnails?.[0]?.url || null,
-                viewCount: parseInt(videoDetails.viewCount) || 0,
-                uploadDate: videoDetails.publishDate || null
+                thumbnail: videoData.thumbnail || null,
+                viewCount: parseInt(videoData.view_count) || 0,
+                uploadDate: videoData.upload_date || null
             };
             
             console.log(`🎥 [YOUTUBE DEBUG] ✅ Video info processed successfully:`, result);
@@ -89,57 +91,15 @@ class YouTubeUtils {
             
             debugLog('Error getting video info', { error: error.message, url });
             
-            // Handle specific YouTube API errors
-            if (error.message.includes('410') || error.message.includes('Status code: 410')) {
-                console.log(`🎥 [YOUTUBE DEBUG] 410 error - trying alternative approach...`);
-                
-                // Try with different options for region-blocked content
-                try {
-                    console.log(`🎥 [YOUTUBE DEBUG] Retrying with alternate options...`);
-                    const retryInfo = await ytdl.getInfo(url, { 
-                        requestOptions: { 
-                            headers: {
-                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                            }
-                        }
-                    });
-                    
-                    if (retryInfo && retryInfo.videoDetails) {
-                        console.log(`🎥 [YOUTUBE DEBUG] ✅ Retry successful!`);
-                        const videoDetails = retryInfo.videoDetails;
-                        
-                        const result = {
-                            title: videoDetails.title || 'Unknown Title',
-                            duration: parseInt(videoDetails.lengthSeconds) || 0,
-                            uploader: videoDetails.author?.name || 'Unknown Artist',
-                            url: url,
-                            thumbnail: videoDetails.thumbnails?.[0]?.url || null,
-                            viewCount: parseInt(videoDetails.viewCount) || 0,
-                            uploadDate: videoDetails.publishDate || null
-                        };
-                        
-                        console.log(`🎥 [YOUTUBE DEBUG] ✅ Retry result:`, result);
-                        return result;
-                    }
-                } catch (retryError) {
-                    console.log(`🎥 [YOUTUBE DEBUG] Retry also failed:`, retryError.message);
-                }
-                
-                // FINAL FALLBACK: Use yt-dlp (the original working method)
-                console.log(`🎥 [YOUTUBE DEBUG] Trying yt-dlp fallback (original working method)...`);
-                try {
-                    const ytdlpResult = await this.getVideoInfoWithYtDlp(url);
-                    console.log(`🎥 [YOUTUBE DEBUG] ✅ yt-dlp fallback successful!`);
-                    return ytdlpResult;
-                } catch (ytdlpError) {
-                    console.log(`🎥 [YOUTUBE DEBUG] yt-dlp fallback also failed:`, ytdlpError.message);
-                }
-                
-                throw new Error('Video is unavailable or region-blocked on this server');
-            } else if (error.message.includes('403') || error.message.includes('Status code: 403')) {
+            // Handle specific errors
+            if (error.message.includes('ERROR: Video unavailable')) {
+                throw new Error('Video is unavailable or region-blocked');
+            } else if (error.message.includes('ERROR: Private video')) {
                 throw new Error('Video is private or restricted');
-            } else if (error.message.includes('404') || error.message.includes('Status code: 404')) {
+            } else if (error.message.includes('ERROR: This video is not available')) {
                 throw new Error('Video not found on YouTube');
+            } else if (error.message.includes('timeout') || error.message.includes('TIMEOUT')) {
+                throw new Error('Request timed out - video may be too long or server is slow');
             } else {
                 throw new Error(`Failed to get video information: ${error.message}`);
             }
@@ -209,7 +169,16 @@ class YouTubeUtils {
     validateURL(url) {
         try {
             if (!url || typeof url !== 'string') return false;
-            return ytdl.validateURL(url);
+            
+            // Check for YouTube URL patterns
+            const youtubePatterns = [
+                /^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\/.+/,
+                /youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/,
+                /youtu\.be\/([a-zA-Z0-9_-]+)/,
+                /youtube\.com\/embed\/([a-zA-Z0-9_-]+)/
+            ];
+            
+            return youtubePatterns.some(pattern => pattern.test(url));
         } catch (error) {
             debugLog('Error validating URL', { error: error.message, url });
             return false;
@@ -240,7 +209,7 @@ class YouTubeUtils {
     }
 
     /**
-     * Get audio stream URL using ytdl-core
+     * Get audio stream URL using yt-dlp
      * @param {string} url - YouTube video URL
      * @returns {Promise<string>} Audio stream URL
      */
@@ -252,7 +221,7 @@ class YouTubeUtils {
             debugLog(`Getting audio stream for: ${url}`);
             
             console.log(`🎵 [AUDIO DEBUG] Validating URL for audio stream...`);
-            const isValid = ytdl.validateURL(url);
+            const isValid = this.validateURL(url);
             console.log(`🎵 [AUDIO DEBUG] URL validation result: ${isValid}`);
             
             if (!isValid) {
@@ -260,36 +229,30 @@ class YouTubeUtils {
                 throw new Error('Invalid YouTube URL');
             }
             
-            // Get audio formats
-            console.log(`🎵 [AUDIO DEBUG] Getting video info for audio formats...`);
+            // Get audio URL using yt-dlp
+            console.log(`🎵 [AUDIO DEBUG] Getting audio URL with yt-dlp...`);
             const startTime = Date.now();
             
-            const info = await ytdl.getInfo(url);
+            const command = `yt-dlp -f "bestaudio[ext=m4a]/bestaudio/best" --get-url "${url}"`;
+            console.log(`🎵 [AUDIO DEBUG] Command: ${command}`);
+            
+            const audioUrl = execSync(command, { 
+                encoding: 'utf8',
+                timeout: 30000,
+                maxBuffer: 1024 * 1024 * 10
+            }).trim();
+            
             const endTime = Date.now();
+            console.log(`🎵 [AUDIO DEBUG] yt-dlp audio URL retrieved in ${endTime - startTime}ms`);
             
-            console.log(`🎵 [AUDIO DEBUG] Video info for audio retrieved in ${endTime - startTime}ms`);
-            console.log(`🎵 [AUDIO DEBUG] Total formats available: ${info.formats?.length || 0}`);
-            
-            const audioFormats = ytdl.filterFormats(info.formats, 'audioonly');
-            console.log(`🎵 [AUDIO DEBUG] Audio-only formats available: ${audioFormats.length}`);
-            
-            if (audioFormats.length === 0) {
-                console.log(`🎵 [AUDIO DEBUG] ❌ No audio formats available for this video`);
-                console.log(`🎵 [AUDIO DEBUG] All formats:`, info.formats?.map(f => ({ itag: f.itag, mimeType: f.mimeType, hasAudio: f.hasAudio, hasVideo: f.hasVideo })));
-                throw new Error('No audio formats available');
+            if (!audioUrl) {
+                console.log(`🎵 [AUDIO DEBUG] ❌ No audio URL returned`);
+                throw new Error('No audio URL available');
             }
             
-            console.log(`🎵 [AUDIO DEBUG] Best audio format:`, { 
-                itag: audioFormats[0].itag, 
-                mimeType: audioFormats[0].mimeType,
-                bitrate: audioFormats[0].audioBitrate,
-                quality: audioFormats[0].audioQuality
-            });
-            
-            // Return the URL for streaming
             console.log(`🎵 [AUDIO DEBUG] ✅ Audio stream URL obtained successfully`);
             debugLog('Audio stream URL obtained successfully');
-            return url; // ytdl-core can stream directly from the URL
+            return audioUrl;
             
         } catch (error) {
             console.log(`🎵 [AUDIO DEBUG] ❌ === ERROR IN AUDIO STREAM RETRIEVAL ===`);
@@ -344,14 +307,12 @@ class YouTubeUtils {
         try {
             debugLog(`Getting audio URL for Discord: ${url}`);
             
-            if (!ytdl.validateURL(url)) {
+            if (!this.validateURL(url)) {
                 throw new Error('Invalid YouTube URL');
             }
             
-            // For Discord voice, we can return the URL directly
-            // ytdl-core will handle the streaming internally
-            debugLog('Audio URL ready for Discord playback');
-            return url;
+            // Get the actual streaming URL using yt-dlp
+            return await this.getAudioStream(url);
             
         } catch (error) {
             debugLog('Error getting audio URL', { error: error.message, url });
@@ -443,49 +404,4 @@ class YouTubeUtils {
         const utils = new YouTubeUtils();
         return utils.formatDuration(seconds);
     }
-    /**
-     * Fallback method using yt-dlp-exec package (the original working approach)
-     * @param {string} url - YouTube video URL
-     * @returns {Promise<Object>} Video information
-     */
-    async getVideoInfoWithYtDlp(url) {
-        console.log(`🎥 [YTDLP DEBUG] Using yt-dlp-exec package for: ${url}`);
-        
-        try {
-            // Use yt-dlp-exec to get video info as JSON
-            console.log(`🎥 [YTDLP DEBUG] Calling ytDlpExec with dump-json...`);
-            
-            const videoData = await ytDlpExec(url, {
-                dumpSingleJson: true,
-                noDownload: true,
-                skipDownload: true,
-                timeout: 30000
-            });
-            
-            console.log(`🎥 [YTDLP DEBUG] yt-dlp-exec data received successfully`);
-            
-            if (!videoData) {
-                throw new Error('No data returned from yt-dlp-exec');
-            }
-            
-            const result = {
-                title: videoData.title || 'Unknown Title',
-                duration: parseInt(videoData.duration) || 0,
-                uploader: videoData.uploader || videoData.channel || 'Unknown Artist',
-                url: url,
-                thumbnail: videoData.thumbnail || null,
-                viewCount: parseInt(videoData.view_count) || 0,
-                uploadDate: videoData.upload_date || null
-            };
-            
-            console.log(`🎥 [YTDLP DEBUG] ✅ Processed yt-dlp-exec result:`, result);
-            return result;
-            
-        } catch (error) {
-            console.log(`🎥 [YTDLP DEBUG] ❌ yt-dlp-exec failed:`, error.message);
-            throw new Error(`yt-dlp-exec fallback failed: ${error.message}`);
-        }
-    }
 }
-
-module.exports = YouTubeUtils;
