@@ -15,7 +15,7 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-# package-lock.json - needed for production deployments
+package-lock.json
 yarn.lock
 
 # Development and build files
