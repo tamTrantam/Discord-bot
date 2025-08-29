@@ -548,4 +548,41 @@ client.login(process.env.DISCORD_TOKEN)
         process.exit(1);
     });
 
+// HTTP Server for cloud deployment port binding
+const http = require('http');
+const PORT = process.env.PORT || 3000;
+
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+        status: 'online',
+        bot: 'Discord Music Bot v2.0',
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString(),
+        servers: client.guilds.cache.size || 0
+    }));
+});
+
+server.listen(PORT, () => {
+    console.log(`🌐 HTTP server listening on port ${PORT}`);
+    console.log(`📊 Health check available at http://localhost:${PORT}`);
+});
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+    console.log('🛑 Shutting down gracefully...');
+    server.close(() => {
+        client.destroy();
+        process.exit(0);
+    });
+});
+
+process.on('SIGTERM', () => {
+    console.log('🛑 Received SIGTERM, shutting down...');
+    server.close(() => {
+        client.destroy();
+        process.exit(0);
+    });
+});
+
 module.exports = client;

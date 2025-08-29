@@ -1,0 +1,26 @@
+# Docker ignore file
+node_modules
+npm-debug.log
+.env
+.git
+.gitignore
+README.md
+Dockerfile
+.dockerignore
+coverage
+.nyc_output
+.vscode
+.idea
+*.log
+temp
+tmp
+*.backup
+backup
+backups
+audio_cache
+downloads
+yt-dlp-cache
+*.mp3
+*.mp4
+*.wav
+*.webm
