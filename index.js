@@ -128,10 +128,29 @@ client.on('interactionCreate', async interaction => {
                 ephemeral: true
             };
 
-            if (interaction.replied || interaction.deferred) {
-                await interaction.followUp(errorMessage);
-            } else {
-                await interaction.reply(errorMessage);
+            // Safe interaction response - check state before responding
+            try {
+                if (interaction.replied) {
+                    // Interaction already replied to - do nothing
+                    debugLog('Interaction already replied to, skipping error response');
+                } else if (interaction.deferred) {
+                    // Interaction was deferred - use followUp
+                    await interaction.followUp(errorMessage);
+                } else {
+                    // Interaction not yet responded to - use reply
+                    await interaction.reply(errorMessage);
+                }
+            } catch (responseError) {
+                // If we still can't respond, log it but don't crash
+                console.error('Failed to send error response to interaction:', responseError.message);
+                debugLog('Error response failed', {
+                    originalError: error.message,
+                    responseError: responseError.message,
+                    interactionState: {
+                        replied: interaction.replied,
+                        deferred: interaction.deferred
+                    }
+                });
             }
         }
     }
@@ -403,10 +422,29 @@ client.on('interactionCreate', async interaction => {
                 ephemeral: true
             };
 
-            if (interaction.replied || interaction.deferred) {
-                await interaction.followUp(errorMessage);
-            } else {
-                await interaction.reply(errorMessage);
+            // Safe interaction response - check state before responding
+            try {
+                if (interaction.replied) {
+                    // Interaction already replied to - do nothing
+                    debugLog('Button interaction already replied to, skipping error response');
+                } else if (interaction.deferred) {
+                    // Interaction was deferred - use followUp
+                    await interaction.followUp(errorMessage);
+                } else {
+                    // Interaction not yet responded to - use reply
+                    await interaction.reply(errorMessage);
+                }
+            } catch (responseError) {
+                // If we still can't respond, log it but don't crash
+                console.error('Failed to send button error response:', responseError.message);
+                debugLog('Button error response failed', {
+                    originalError: error.message,
+                    responseError: responseError.message,
+                    interactionState: {
+                        replied: interaction.replied,
+                        deferred: interaction.deferred
+                    }
+                });
             }
         }
     }
@@ -536,6 +574,36 @@ client.on('interactionCreate', async interaction => {
             }
         }
     }
+});
+
+// Global error handlers to prevent crashes
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('🚨 Unhandled Rejection at:', promise, 'reason:', reason);
+    debugLog('Unhandled Promise Rejection', {
+        reason: reason?.message || reason,
+        stack: reason?.stack
+    });
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('🚨 Uncaught Exception:', error);
+    debugLog('Uncaught Exception', {
+        error: error.message,
+        stack: error.stack
+    });
+    // Don't exit on uncaught exceptions in production
+    if (process.env.NODE_ENV !== 'production') {
+        process.exit(1);
+    }
+});
+
+// Add error handler for Discord client
+client.on('error', (error) => {
+    console.error('🚨 Discord Client Error:', error);
+    debugLog('Discord Client Error', {
+        error: error.message,
+        stack: error.stack
+    });
 });
 
 // Login to Discord
