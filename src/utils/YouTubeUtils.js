@@ -27,17 +27,44 @@ class YouTubeUtils {
      * @returns {Promise<Object>} Video information
      */
     async getVideoInfo(url) {
+        console.log(`🎥 [YOUTUBE DEBUG] === STARTING VIDEO INFO RETRIEVAL ===`);
+        console.log(`🎥 [YOUTUBE DEBUG] URL: ${url}`);
+        console.log(`🎥 [YOUTUBE DEBUG] Method: ${this.currentMethod}`);
+        
         try {
             debugLog(`Getting video info for: ${url}`);
             
             // Validate YouTube URL
-            if (!ytdl.validateURL(url)) {
+            console.log(`🎥 [YOUTUBE DEBUG] Validating URL...`);
+            const isValid = ytdl.validateURL(url);
+            console.log(`🎥 [YOUTUBE DEBUG] URL validation result: ${isValid}`);
+            
+            if (!isValid) {
+                console.log(`🎥 [YOUTUBE DEBUG] ❌ Invalid YouTube URL format`);
                 throw new Error('Invalid YouTube URL');
             }
             
             // Get video info using ytdl-core
+            console.log(`🎥 [YOUTUBE DEBUG] Calling ytdl.getInfo()...`);
+            const startTime = Date.now();
+            
             const info = await ytdl.getInfo(url);
+            const endTime = Date.now();
+            
+            console.log(`🎥 [YOUTUBE DEBUG] ytdl.getInfo() completed in ${endTime - startTime}ms`);
+            console.log(`🎥 [YOUTUBE DEBUG] Info object received:`, !!info);
+            
             const videoDetails = info.videoDetails;
+            console.log(`🎥 [YOUTUBE DEBUG] Video details available:`, !!videoDetails);
+            
+            if (!videoDetails) {
+                console.log(`🎥 [YOUTUBE DEBUG] ❌ No video details in response`);
+                throw new Error('No video details found');
+            }
+            
+            console.log(`🎥 [YOUTUBE DEBUG] Title: "${videoDetails.title}"`);
+            console.log(`🎥 [YOUTUBE DEBUG] Duration: ${videoDetails.lengthSeconds}s`);
+            console.log(`🎥 [YOUTUBE DEBUG] Author: ${videoDetails.author?.name}`);
             
             const result = {
                 title: videoDetails.title || 'Unknown Title',
@@ -49,10 +76,16 @@ class YouTubeUtils {
                 uploadDate: videoDetails.publishDate || null
             };
             
+            console.log(`🎥 [YOUTUBE DEBUG] ✅ Video info processed successfully:`, result);
             debugLog('Video info retrieved successfully', result);
             return result;
             
         } catch (error) {
+            console.log(`🎥 [YOUTUBE DEBUG] ❌ === ERROR IN VIDEO INFO RETRIEVAL ===`);
+            console.log(`🎥 [YOUTUBE DEBUG] Error message: ${error.message}`);
+            console.log(`🎥 [YOUTUBE DEBUG] Error stack:`, error.stack);
+            console.log(`🎥 [YOUTUBE DEBUG] URL that failed: ${url}`);
+            
             debugLog('Error getting video info', { error: error.message, url });
             
             // Handle specific YouTube API errors
@@ -167,26 +200,58 @@ class YouTubeUtils {
      * @returns {Promise<string>} Audio stream URL
      */
     async getAudioStream(url) {
+        console.log(`🎵 [AUDIO DEBUG] === STARTING AUDIO STREAM RETRIEVAL ===`);
+        console.log(`🎵 [AUDIO DEBUG] URL: ${url}`);
+        
         try {
             debugLog(`Getting audio stream for: ${url}`);
             
-            if (!ytdl.validateURL(url)) {
+            console.log(`🎵 [AUDIO DEBUG] Validating URL for audio stream...`);
+            const isValid = ytdl.validateURL(url);
+            console.log(`🎵 [AUDIO DEBUG] URL validation result: ${isValid}`);
+            
+            if (!isValid) {
+                console.log(`🎵 [AUDIO DEBUG] ❌ Invalid URL for audio stream`);
                 throw new Error('Invalid YouTube URL');
             }
             
             // Get audio formats
+            console.log(`🎵 [AUDIO DEBUG] Getting video info for audio formats...`);
+            const startTime = Date.now();
+            
             const info = await ytdl.getInfo(url);
+            const endTime = Date.now();
+            
+            console.log(`🎵 [AUDIO DEBUG] Video info for audio retrieved in ${endTime - startTime}ms`);
+            console.log(`🎵 [AUDIO DEBUG] Total formats available: ${info.formats?.length || 0}`);
+            
             const audioFormats = ytdl.filterFormats(info.formats, 'audioonly');
+            console.log(`🎵 [AUDIO DEBUG] Audio-only formats available: ${audioFormats.length}`);
             
             if (audioFormats.length === 0) {
+                console.log(`🎵 [AUDIO DEBUG] ❌ No audio formats available for this video`);
+                console.log(`🎵 [AUDIO DEBUG] All formats:`, info.formats?.map(f => ({ itag: f.itag, mimeType: f.mimeType, hasAudio: f.hasAudio, hasVideo: f.hasVideo })));
                 throw new Error('No audio formats available');
             }
             
+            console.log(`🎵 [AUDIO DEBUG] Best audio format:`, { 
+                itag: audioFormats[0].itag, 
+                mimeType: audioFormats[0].mimeType,
+                bitrate: audioFormats[0].audioBitrate,
+                quality: audioFormats[0].audioQuality
+            });
+            
             // Return the URL for streaming
+            console.log(`🎵 [AUDIO DEBUG] ✅ Audio stream URL obtained successfully`);
             debugLog('Audio stream URL obtained successfully');
             return url; // ytdl-core can stream directly from the URL
             
         } catch (error) {
+            console.log(`🎵 [AUDIO DEBUG] ❌ === ERROR IN AUDIO STREAM RETRIEVAL ===`);
+            console.log(`🎵 [AUDIO DEBUG] Error message: ${error.message}`);
+            console.log(`🎵 [AUDIO DEBUG] Error stack:`, error.stack);
+            console.log(`🎵 [AUDIO DEBUG] URL that failed: ${url}`);
+            
             debugLog('Error getting audio stream', { error: error.message, url });
             throw new Error(`Failed to get audio stream: ${error.message}`);
         }

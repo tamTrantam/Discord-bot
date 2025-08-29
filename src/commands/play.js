@@ -112,31 +112,51 @@ module.exports = {
 
                 } else {
                     // Single song - use improved search that excludes Shorts
+                    console.log(`🎵 [PLAY DEBUG] === STARTING SINGLE SONG PROCESSING ===`);
+                    console.log(`🎵 [PLAY DEBUG] Query: "${query}"`);
+                    console.log(`🎵 [PLAY DEBUG] User: ${interaction.user.tag}`);
+                    console.log(`🎵 [PLAY DEBUG] Guild: ${interaction.guild.name}`);
+                    
                     interaction.client.debugLog?.(`Processing single song: ${query}`);
                     
                     let songInfo;
                     
-                    if (YouTubeUtils.validateURL(query)) {
+                    console.log(`🎵 [PLAY DEBUG] Checking if query is URL...`);
+                    const isURL = YouTubeUtils.validateURL(query);
+                    console.log(`🎵 [PLAY DEBUG] Is URL: ${isURL}`);
+                    
+                    if (isURL) {
                         // Direct URL - get video info directly
+                        console.log(`🎵 [PLAY DEBUG] Processing direct URL...`);
                         songInfo = await YouTubeUtils.getVideoInfo(query);
+                        console.log(`🎵 [PLAY DEBUG] ✅ Direct URL processed successfully`);
                     } else {
                         // Search query - use advanced search to avoid Shorts
+                        console.log(`🎵 [PLAY DEBUG] Processing search query...`);
                         const utils = new YouTubeUtils();
+                        
+                        console.log(`🎵 [PLAY DEBUG] Calling searchVideosAdvanced...`);
                         const searchResults = await utils.searchVideosAdvanced(query, {
                             limit: 1,
                             excludeShorts: true,
                             preferMusic: true,
                             minDuration: 61 // Exclude videos shorter than 61 seconds
                         });
+                        console.log(`🎵 [PLAY DEBUG] Search results count: ${searchResults.length}`);
                         
                         if (searchResults.length === 0) {
+                            console.log(`🎵 [PLAY DEBUG] ❌ No search results found`);
                             return interaction.editReply({
                                 content: '❌ No suitable songs found! Try a different search term or provide a direct YouTube URL.'
                             });
                         }
                         
+                        console.log(`🎵 [PLAY DEBUG] First result: ${searchResults[0].title} (${searchResults[0].url})`);
+                        
                         // Get detailed info for the first result
+                        console.log(`🎵 [PLAY DEBUG] Getting detailed video info...`);
                         songInfo = await YouTubeUtils.getVideoInfo(searchResults[0].url);
+                        console.log(`🎵 [PLAY DEBUG] ✅ Search result processed successfully`);
                     }
                     
                     const videoInfoTime = Date.now() - videoInfoStartTime;

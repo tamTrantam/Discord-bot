@@ -146,6 +146,12 @@ class MusicQueue {
     }
 
     async addSong(query, requestedBy) {
+        console.log(`🎵 [QUEUE DEBUG] === ADDING SONG TO QUEUE ===`);
+        console.log(`🎵 [QUEUE DEBUG] Guild: ${this.guildId}`);
+        console.log(`🎵 [QUEUE DEBUG] Query type: ${typeof query}`);
+        console.log(`🎵 [QUEUE DEBUG] Query:`, query);
+        console.log(`🎵 [QUEUE DEBUG] Requested by: ${requestedBy?.tag || 'Unknown'}`);
+        
         try {
             const startTime = Date.now();
             debugLog(`Adding song to queue`, {
@@ -157,6 +163,7 @@ class MusicQueue {
             
             // Check if query is already a song object or a string query
             if (typeof query === 'object' && query.title) {
+                console.log(`🎵 [QUEUE DEBUG] Using pre-processed song object`);
                 // It's already a song object, use it directly
                 song = {
                     title: query.title,
@@ -167,9 +174,12 @@ class MusicQueue {
                     requestedBy: query.requestedBy || requestedBy,
                     addedAt: new Date().toISOString()
                 };
+                console.log(`🎵 [QUEUE DEBUG] Song object created:`, { title: song.title, url: song.url, duration: song.duration });
             } else {
+                console.log(`🎵 [QUEUE DEBUG] Processing query string, getting video info...`);
                 // It's a query string, get video information using yt-dlp
                 const videoInfo = await YouTubeUtils.getVideoInfo(query);
+                console.log(`🎵 [QUEUE DEBUG] Video info retrieved:`, { title: videoInfo.title, duration: videoInfo.duration });
                 
                 song = {
                     title: videoInfo.title,
@@ -182,9 +192,14 @@ class MusicQueue {
                 };
             }
 
+            console.log(`🎵 [QUEUE DEBUG] Adding song to queue array...`);
             this.songs.push(song);
+            console.log(`🎵 [QUEUE DEBUG] Song added! Queue length: ${this.songs.length}`);
+            console.log(`🎵 [QUEUE DEBUG] Queue position: ${this.songs.length}`);
             
             const executionTime = Date.now() - startTime;
+            console.log(`🎵 [QUEUE DEBUG] ✅ Song successfully added in ${executionTime}ms`);
+            
             debugLog(`Song added to queue`, {
                 guild: this.guildId,
                 song: {
@@ -196,8 +211,18 @@ class MusicQueue {
                 executionTime
             });
 
+            // Check if this is the first song and should start playing
+            if (this.songs.length === 1 && !this.isPlaying) {
+                console.log(`🎵 [QUEUE DEBUG] First song added, should start playback automatically`);
+            }
+
             return song;
         } catch (error) {
+            console.log(`🎵 [QUEUE DEBUG] ❌ === ERROR ADDING SONG TO QUEUE ===`);
+            console.log(`🎵 [QUEUE DEBUG] Error message: ${error.message}`);
+            console.log(`🎵 [QUEUE DEBUG] Error stack:`, error.stack);
+            console.log(`🎵 [QUEUE DEBUG] Query that failed:`, query);
+            
             console.error('❌ Failed to add song:', error);
             debugLog(`Failed to add song to queue`, {
                 guild: this.guildId,
