@@ -51,8 +51,8 @@ class YouTubeUtils {
                 url: url,
                 videoQuality: 'max',
                 audioFormat: 'best',
-                audioBitrate: 'max',
-                filenamePattern: 'basic',
+                audioBitrate: '128',
+                filenameStyle: 'basic',
                 downloadMode: 'auto'
             }, {
                 headers: {
@@ -68,9 +68,20 @@ class YouTubeUtils {
             
             console.log(`🎥 [YOUTUBE DEBUG] Cobalt response status:`, response.data?.status);
             
-            if (!response.data || response.data.status !== 'success') {
+            if (!response.data) {
+                console.log(`🎥 [YOUTUBE DEBUG] ❌ No response data from Cobalt API`);
+                throw new Error('No response from Cobalt API');
+            }
+            
+            // Handle different Cobalt response statuses
+            if (response.data.status === 'error') {
                 console.log(`🎥 [YOUTUBE DEBUG] ❌ Cobalt API error:`, response.data?.text || 'Unknown error');
                 throw new Error(`Cobalt API error: ${response.data?.text || 'Unknown error'}`);
+            }
+            
+            if (response.data.status !== 'stream' && response.data.status !== 'success') {
+                console.log(`🎥 [YOUTUBE DEBUG] ❌ Unexpected Cobalt status:`, response.data.status);
+                throw new Error(`Cobalt API returned status: ${response.data.status}`);
             }
             
             // Extract video information from Cobalt response
@@ -296,11 +307,10 @@ class YouTubeUtils {
             // Request audio from Cobalt API
             const cobaltResponse = await this.axios.post('https://api.cobalt.tools/api/json', {
                 url: url,
-                vCodec: 'h264',
-                vQuality: '720',
-                aFormat: 'mp3',
-                isAudioOnly: true,
-                disableMetadata: false
+                videoQuality: '720',
+                audioFormat: 'mp3',
+                audioBitrate: '128',
+                downloadMode: 'audio'
             }, {
                 headers: {
                     'Accept': 'application/json',
@@ -325,8 +335,10 @@ class YouTubeUtils {
                         audioCodec: 'mp3'
                     }
                 };
-            } else {
+            } else if (cobaltResponse.data.status === 'error') {
                 throw new Error(`Cobalt API error: ${cobaltResponse.data.text || 'Unknown error'}`);
+            } else {
+                throw new Error(`Cobalt API returned status: ${cobaltResponse.data.status}`);
             }
             
         } catch (error) {
