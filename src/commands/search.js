@@ -205,101 +205,87 @@ module.exports = {
 
             const playCommand = client.commands.get('play');
             if (playCommand) {
-                // Create a new interaction wrapper for followUp instead of editReply
+                // Create a new interaction wrapper for the play command
                 const playInteraction = Object.create(interaction);
                 playInteraction.options = {
                     getString: () => selectedResult.url
                 };
                 
-                // Override the reply methods to use followUp
-                playInteraction.deferReply = async () => {
-                    // Already handled by search interface
-                    return;
-                };
+                // Override reply methods to prevent conflicts
+                playInteraction.deferReply = async () => Promise.resolve();
                 playInteraction.editReply = async (options) => {
-                    // Convert editReply to followUp for new message
-                    return await interaction.followUp(options);
+                    // Use followUp for play command responses
+                    return await interaction.followUp({ ...options, ephemeral: false });
                 };
                 playInteraction.replied = false;
                 playInteraction.deferred = false;
                 
                 await playCommand.execute(playInteraction);
                 
-                // Clean up the search interface
+                // Clean up the search interface AFTER successful play
                 try {
-                    // First try to delete the interaction reply completely
-                    await interaction.deleteReply();
-                    console.log('🧹 [SEARCH DEBUG] Completely deleted public search interface');
-                } catch (deleteError) {
-                    console.log('🧹 [SEARCH DEBUG] Could not delete public message:', deleteError.message);
-                    // Fallback: Edit to a minimal message and schedule deletion
-                    try {
-                        await interaction.editReply({
-                            content: `✅ **${selectedResult.title}** added to queue`,
-                            embeds: [],
-                            components: []
-                        });
-                        
-                        // Delete after 3 seconds
-                        setTimeout(async () => {
-                            try {
-                                await interaction.deleteReply();
-                                console.log('🧹 [SEARCH DEBUG] Delayed deletion successful');
-                            } catch (delayedError) {
-                                console.log('🧹 [SEARCH DEBUG] Delayed deletion failed:', delayedError.message);
-                            }
-                        }, 3000);
-                    } catch (editError) {
-                        console.log('🧹 [SEARCH DEBUG] Could not edit reply:', editError.message);
-                    }
+                    // Edit to show success message and keep it longer
+                    await interaction.editReply({
+                        content: `✅ **${selectedResult.title}** added to queue!`,
+                        embeds: [],
+                        components: []
+                    });
+                    
+                    // Delete after 10 seconds (longer visibility)
+                    setTimeout(async () => {
+                        try {
+                            await interaction.deleteReply();
+                            console.log('🧹 [SEARCH DEBUG] Deleted search interface after success');
+                        } catch (delayedError) {
+                            console.log('🧹 [SEARCH DEBUG] Could not delete after delay:', delayedError.message);
+                        }
+                    }, 10000);
+                    
+                } catch (editError) {
+                    console.log('🧹 [SEARCH DEBUG] Could not edit reply after success:', editError.message);
                 }
                 
                 // Clear the session
                 client.searchSessions?.delete(sessionId);
                 console.log('🧹 [SEARCH DEBUG] Cleared search session');
                 
-                // Update control panel and force cleanup if bound
+                // Update control panel (without force cleanup to avoid conflicts)
                 const bindCommand = client.commands.get('bind');
                 if (bindCommand && bindCommand.updateControlPanel) {
                     try {
-                        await bindCommand.updateControlPanel(client, interaction.guild.id);
-                        console.log('🧹 [SEARCH DEBUG] Updated control panel');
-                        
-                        // Force cleanup after a short delay
                         setTimeout(async () => {
-                            if (bindCommand.forceCleanup) {
-                                await bindCommand.forceCleanup(client, interaction.guild.id);
-                            }
-                        }, 1000);
+                            await bindCommand.updateControlPanel(client, interaction.guild.id);
+                            console.log('🧹 [SEARCH DEBUG] Updated control panel');
+                        }, 2000); // Delay to avoid conflicts
                     } catch (updateError) {
                         console.log('🧹 [SEARCH DEBUG] Control panel update failed:', updateError.message);
                     }
                 }
             } else {
-                await interaction.followUp({
-                    content: `✅ Selected: **${selectedResult.title}**\nUse the play command to add it to queue.`
+                await interaction.editReply({
+                    content: `✅ Selected: **${selectedResult.title}**\nPlay command not available.`
                 });
             }
         } catch (error) {
             console.log('Error in song selection:', error.message);
             
-            // IMMEDIATELY acknowledge the interaction even on error
+            // Handle errors without multiple acknowledgments
             try {
-                await interaction.update({
-                    content: `❌ Failed to add song to queue. Error: ${error.message}`,
+                await interaction.editReply({
+                    content: `❌ Failed to add song: ${error.message.includes('410') ? 'Video unavailable on YouTube' : error.message}`,
                     embeds: [],
                     components: []
                 });
                 
-                // Delete the error message after 5 seconds
+                // Keep error visible longer
                 setTimeout(async () => {
                     try {
                         await interaction.deleteReply();
-                        console.log('🧹 [SEARCH DEBUG] Deleted public search interface after error');
+                        console.log('🧹 [SEARCH DEBUG] Deleted search interface after error');
                     } catch (deleteError) {
                         console.log('🧹 [SEARCH DEBUG] Could not delete after error:', deleteError.message);
                     }
-                }, 5000); // Show error for 5 seconds before deleting
+                }, 8000); // 8 seconds for error visibility
                 
             } catch (updateError) {
                 console.log('🧹 [SEARCH DEBUG] Could not update interaction on error:', updateError.message);
@@ -315,29 +301,23 @@ module.exports = {
             // Clean up session
             client.searchSessions?.delete(sessionId);
             
-            // Delete the search interface
+            // Update instead of trying to delete immediately
             try {
                 await interaction.update({
-                    content: '❌ Search cancelled by user.',
+                    content: '❌ Search cancelled.',
                     embeds: [],
                     components: []
                 });
                 
-                // Delete after 2 seconds
+                // Delete after 5 seconds (less aggressive)
                 setTimeout(async () => {
                     try {
                         await interaction.deleteReply();
                         console.log('🧹 [SEARCH DEBUG] Deleted cancelled search interface');
-                        
-                        // Force aggressive cleanup after cancellation
-                        const bindCommand = client.commands.get('bind');
-                        if (bindCommand) {
-                            await bindCommand.forceCleanup(client, interaction.guild.id);
-                        }
                     } catch (deleteError) {
                         console.log('🧹 [SEARCH DEBUG] Could not delete cancelled search:', deleteError.message);
                     }
-                }, 2000);
+                }, 5000);
             } catch (error) {
                 console.log('🧹 [SEARCH DEBUG] Could not cancel search:', error.message);
             }

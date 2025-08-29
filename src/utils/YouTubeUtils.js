@@ -54,7 +54,17 @@ class YouTubeUtils {
             
         } catch (error) {
             debugLog('Error getting video info', { error: error.message, url });
-            throw new Error(`Failed to get video information: ${error.message}`);
+            
+            // Handle specific YouTube API errors
+            if (error.message.includes('410') || error.message.includes('Status code: 410')) {
+                throw new Error('Video is unavailable or has been removed from YouTube');
+            } else if (error.message.includes('403') || error.message.includes('Status code: 403')) {
+                throw new Error('Video is private or restricted');
+            } else if (error.message.includes('404') || error.message.includes('Status code: 404')) {
+                throw new Error('Video not found on YouTube');
+            } else {
+                throw new Error(`Failed to get video information: ${error.message}`);
+            }
         }
     }
 
