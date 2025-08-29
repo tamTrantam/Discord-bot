@@ -10,11 +10,8 @@ module.exports = {
         const guildId = interaction.guild.id;
         const channelId = interaction.channel.id;
         
-        // IMMEDIATE response to prevent timeout - no processing before this!
-        await interaction.reply({ 
-            content: '🔄 Setting up music control panel...', 
-            flags: MessageFlags.Ephemeral
-        });
+        // IMMEDIATELY defer to prevent timeout
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         
         try {
             // Store the binding information first (fast operation)

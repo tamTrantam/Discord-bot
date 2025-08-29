@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, MessageFlags } = require('discord.js');
 const YouTube = require('youtube-sr').default;
 const ytdl = require('ytdl-core');
 
@@ -32,7 +32,7 @@ module.exports = {
             console.log('Error showing search modal:', error.message);
             await interaction.reply({
                 content: '❌ Failed to show search interface.',
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
     },
@@ -181,7 +181,7 @@ module.exports = {
             try {
                 return await interaction.reply({
                     content: '❌ Search session expired. Please search again.',
-                    ephemeral: true
+                    flags: MessageFlags.Ephemeral
                 });
             } catch (error) {
                 console.log('🧹 [SEARCH DEBUG] Could not reply about expired session:', error.message);
@@ -207,7 +207,7 @@ module.exports = {
         // Add to queue using the play command logic
         try {
             // IMMEDIATELY defer the interaction to prevent timeout
-            await interaction.deferReply({ ephemeral: true });
+            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
             const playCommand = client.commands.get('play');
             if (playCommand) {
@@ -251,11 +251,7 @@ module.exports = {
                     console.log('🧹 [SEARCH DEBUG] Could not edit reply after success:', editError.message);
                 }
                 
-                // Clear the session
-                client.searchSessions?.delete(sessionId);
-                console.log('🧹 [SEARCH DEBUG] Cleared search session');
-                
-                // Update control panel (without force cleanup to avoid conflicts)
+                // Update control panel BEFORE clearing session (to avoid conflicts)
                 const bindCommand = client.commands.get('bind');
                 if (bindCommand && bindCommand.updateControlPanel) {
                     try {
@@ -267,6 +263,12 @@ module.exports = {
                         console.log('🧹 [SEARCH DEBUG] Control panel update failed:', updateError.message);
                     }
                 }
+                
+                // Clear the session AFTER control panel update is scheduled
+                setTimeout(() => {
+                    client.searchSessions?.delete(sessionId);
+                    console.log('🧹 [SEARCH DEBUG] Cleared search session (delayed)');
+                }, 3000); // Delay to ensure all operations complete
             } else {
                 await interaction.editReply({
                     content: `✅ Selected: **${selectedResult.title}**\nPlay command not available.`
