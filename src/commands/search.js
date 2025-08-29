@@ -1,11 +1,9 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
-const YTDlpWrap = require('yt-dlp-wrap').default;
-const { exec } = require('child_process');
-const util = require('util');
-const execPromise = util.promisify(exec);
+const YouTube = require('youtube-sr').default;
+const ytdl = require('ytdl-core');
 
-// Initialize yt-dlp wrapper
-const ytDlp = new YTDlpWrap();
+// Search sessions to track user interactions
+const searchSessions = new Map();
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -43,47 +41,30 @@ module.exports = {
         console.log(`🔍 [SEARCH] Starting search for: "${query}"`);
         
         try {
-            // Use the Node.js yt-dlp wrapper for more reliable operation
-            console.log(`🔍 [SEARCH] Using yt-dlp-wrap Node.js package`);
+            // Use youtube-sr for pure Node.js YouTube search
+            console.log(`🔍 [SEARCH] Using youtube-sr Node.js package`);
             
-            const searchResults = await ytDlp.execPromise([
-                `ytsearch10:${query}`,
-                '--get-title',
-                '--get-url', 
-                '--get-duration',
-                '--no-playlist',
-                '--flat-playlist'
-            ]);
+            const searchResults = await YouTube.search(query, { 
+                limit: 10, 
+                type: 'video',
+                safeSearch: false
+            });
             
-            console.log(`🔍 [SEARCH] ✅ Search completed successfully`);
-            
-            if (!searchResults || searchResults.trim() === '') {
+            if (!searchResults || searchResults.length === 0) {
                 console.log('🔍 [SEARCH] No results found');
                 return [];
             }
+            
+            console.log(`🔍 [SEARCH] ✅ Found ${searchResults.length} results`);
+            
+            const results = searchResults.map(video => ({
+                title: video.title || 'Unknown Title',
+                url: video.url || `https://youtube.com/watch?v=${video.id}`,
+                duration: video.durationFormatted || 'Unknown Duration',
+                thumbnail: video.thumbnail?.url || 'https://via.placeholder.com/120x90?text=No+Image'
+            }));
 
-            const lines = searchResults.trim().split('\n').filter(line => line.trim() !== '');
-            const results = [];
-
-            // Process results in groups of 3 (title, url, duration)
-            for (let i = 0; i < lines.length; i += 3) {
-                if (i + 2 < lines.length) {
-                    const title = lines[i].trim();
-                    const url = lines[i + 1].trim();
-                    const duration = lines[i + 2].trim();
-                    
-                    if (title && url && url.startsWith('https://')) {
-                        results.push({
-                            title: title.length > 60 ? title.substring(0, 57) + '...' : title,
-                            url,
-                            duration: duration || 'Unknown'
-                        });
-                    }
-                }
-            }
-
-            console.log(`🔍 [SEARCH] Found ${results.length} results`);
-            return results.slice(0, 15); // Limit to 15 results max (5 pages)
+            return results;
             
         } catch (error) {
             console.log('🔍 [SEARCH] Error during search:', error.message);
