@@ -1,5 +1,8 @@
 const ytdl = require('ytdl-core');
 const YouTube = require('youtube-sr').default;
+const { exec } = require('child_process');
+const { promisify } = require('util');
+const execAsync = promisify(exec);
 
 // Debug mode from environment
 const DEBUG_MODE = process.env.DEBUG_MODE === 'true';
@@ -122,6 +125,16 @@ class YouTubeUtils {
                     }
                 } catch (retryError) {
                     console.log(`🎥 [YOUTUBE DEBUG] Retry also failed:`, retryError.message);
+                }
+                
+                // FINAL FALLBACK: Use yt-dlp (the original working method)
+                console.log(`🎥 [YOUTUBE DEBUG] Trying yt-dlp fallback (original working method)...`);
+                try {
+                    const ytdlpResult = await this.getVideoInfoWithYtDlp(url);
+                    console.log(`🎥 [YOUTUBE DEBUG] ✅ yt-dlp fallback successful!`);
+                    return ytdlpResult;
+                } catch (ytdlpError) {
+                    console.log(`🎥 [YOUTUBE DEBUG] yt-dlp fallback also failed:`, ytdlpError.message);
                 }
                 
                 throw new Error('Video is unavailable or region-blocked on this server');
@@ -431,6 +444,49 @@ class YouTubeUtils {
     static formatDuration(seconds) {
         const utils = new YouTubeUtils();
         return utils.formatDuration(seconds);
+    }
+    /**
+     * Fallback method using yt-dlp (the original working approach)
+     * @param {string} url - YouTube video URL
+     * @returns {Promise<Object>} Video information
+     */
+    async getVideoInfoWithYtDlp(url) {
+        console.log(`🎥 [YTDLP DEBUG] Using yt-dlp fallback for: ${url}`);
+        
+        try {
+            // Use yt-dlp to get video info as JSON
+            const command = `yt-dlp --dump-json --no-download "${url}"`;
+            console.log(`🎥 [YTDLP DEBUG] Executing: ${command}`);
+            
+            const { stdout, stderr } = await execAsync(command, { 
+                timeout: 30000,
+                maxBuffer: 1024 * 1024 * 5 // 5MB buffer
+            });
+            
+            if (stderr) {
+                console.log(`🎥 [YTDLP DEBUG] stderr (may be warnings):`, stderr);
+            }
+            
+            const videoData = JSON.parse(stdout);
+            console.log(`🎥 [YTDLP DEBUG] Raw yt-dlp data received`);
+            
+            const result = {
+                title: videoData.title || 'Unknown Title',
+                duration: parseInt(videoData.duration) || 0,
+                uploader: videoData.uploader || videoData.channel || 'Unknown Artist',
+                url: url,
+                thumbnail: videoData.thumbnail || null,
+                viewCount: parseInt(videoData.view_count) || 0,
+                uploadDate: videoData.upload_date || null
+            };
+            
+            console.log(`🎥 [YTDLP DEBUG] ✅ Processed yt-dlp result:`, result);
+            return result;
+            
+        } catch (error) {
+            console.log(`🎥 [YTDLP DEBUG] ❌ yt-dlp failed:`, error.message);
+            throw new Error(`yt-dlp fallback failed: ${error.message}`);
+        }
     }
 }
 
