@@ -12,7 +12,7 @@ services:
       yt-dlp --version
       which yt-dlp
       echo "=== Installing Node.js dependencies ==="
-      npm ci --only=production --no-audit --no-fund
+      yarn install
       echo "=== Build completed successfully ==="
     startCommand: node index.js
     envVars:

@@ -1,6 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, MessageFlags } = require('discord.js');
 const YouTube = require('youtube-sr').default;
-const ytdl = require('ytdl-core');
 
 // Search sessions to track user interactions
 const searchSessions = new Map();

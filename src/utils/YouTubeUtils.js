@@ -405,3 +405,5 @@ class YouTubeUtils {
         return utils.formatDuration(seconds);
     }
 }
+
+module.exports = YouTubeUtils;
