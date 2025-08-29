@@ -6,23 +6,7 @@ services:
     buildCommand: |
       echo "=== Installing Node.js dependencies ==="
       npm ci --only=production --no-audit --no-fund
-      echo "=== Installing yt-dlp ==="
-      # Try multiple installation methods
-      python3 -m pip install --upgrade pip || echo "pip upgrade failed"
-      python3 -m pip install yt-dlp || echo "pip install yt-dlp failed"
-      python3 -m pip install --user yt-dlp || echo "user install failed"
-      # Try direct download as fallback
-      curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp || echo "curl download failed"
-      chmod +x /usr/local/bin/yt-dlp || echo "chmod failed"
-      echo "=== Verifying installations ==="
-      echo "Python version: $(python3 --version)"
-      echo "Pip version: $(python3 -m pip --version)"
-      echo "PATH: $PATH"
-      ls -la /usr/local/bin/ | grep yt-dlp || echo "yt-dlp not in /usr/local/bin"
-      which yt-dlp || echo "yt-dlp not in PATH"
-      yt-dlp --version || echo "yt-dlp binary test failed"
-      python3 -m yt_dlp --version || echo "yt-dlp module test failed"
-      python3 -c "import yt_dlp; print('yt-dlp module import successful')" || echo "yt-dlp module import failed"
+      echo "=== Build completed successfully ==="
     startCommand: node index.js
     envVars:
       - key: NODE_ENV

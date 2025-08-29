@@ -1,7 +1,11 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const YTDlpWrap = require('yt-dlp-wrap').default;
 const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
+
+// Initialize yt-dlp wrapper
+const ytDlp = new YTDlpWrap();
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -39,55 +43,26 @@ module.exports = {
         console.log(`🔍 [SEARCH] Starting search for: "${query}"`);
         
         try {
-            // Try different yt-dlp methods for different deployment environments
-            const ytdlpMethods = [
-                { cmd: 'yt-dlp', desc: 'Standard PATH binary' },
-                { cmd: '/usr/local/bin/yt-dlp', desc: 'System install location' },
-                { cmd: 'python3 -m yt_dlp', desc: 'Python module' },
-                { cmd: 'python -m yt_dlp', desc: 'Python module (alt)' }
-            ];
+            // Use the Node.js yt-dlp wrapper for more reliable operation
+            console.log(`🔍 [SEARCH] Using yt-dlp-wrap Node.js package`);
             
-            let workingCommand = null;
+            const searchResults = await ytDlp.execPromise([
+                `ytsearch10:${query}`,
+                '--get-title',
+                '--get-url', 
+                '--get-duration',
+                '--no-playlist',
+                '--flat-playlist'
+            ]);
             
-            // Test each method quickly
-            for (const method of ytdlpMethods) {
-                try {
-                    console.log(`🔍 [SEARCH] Testing ${method.desc}: ${method.cmd}`);
-                    const testCommand = `${method.cmd} --version`;
-                    const { stdout } = await execPromise(testCommand, { timeout: 3000 });
-                    if (stdout && stdout.trim()) {
-                        workingCommand = method.cmd;
-                        console.log(`🔍 [SEARCH] ✅ Found working yt-dlp: ${method.desc} (version: ${stdout.trim().split('\n')[0]})`);
-                        break;
-                    }
-                } catch (testError) {
-                    console.log(`🔍 [SEARCH] ❌ ${method.desc} not available: ${testError.message}`);
-                    continue;
-                }
-            }
+            console.log(`🔍 [SEARCH] ✅ Search completed successfully`);
             
-            if (!workingCommand) {
-                throw new Error('yt-dlp not found - tried binary and Python module methods');
-            }
-            
-            const searchCommand = `${workingCommand} "ytsearch10:${query}" --get-title --get-url --get-duration --no-playlist --flat-playlist`;
-            console.log(`🔍 [SEARCH] Running search command: ${searchCommand}`);
-            
-            const { stdout, stderr } = await execPromise(searchCommand, { 
-                timeout: 20000,
-                maxBuffer: 1024 * 1024 * 2 // 2MB buffer
-            });
-            
-            if (stderr && !stderr.includes('WARNING')) {
-                console.log('🔍 [SEARCH] stderr:', stderr);
-            }
-
-            if (!stdout || stdout.trim() === '') {
+            if (!searchResults || searchResults.trim() === '') {
                 console.log('🔍 [SEARCH] No results found');
                 return [];
             }
 
-            const lines = stdout.trim().split('\n').filter(line => line.trim() !== '');
+            const lines = searchResults.trim().split('\n').filter(line => line.trim() !== '');
             const results = [];
 
             // Process results in groups of 3 (title, url, duration)
