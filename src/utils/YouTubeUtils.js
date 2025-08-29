@@ -1,8 +1,6 @@
 const ytdl = require('ytdl-core');
 const YouTube = require('youtube-sr').default;
-const { exec } = require('child_process');
-const { promisify } = require('util');
-const execAsync = promisify(exec);
+const ytDlpExec = require('yt-dlp-exec');
 
 // Debug mode from environment
 const DEBUG_MODE = process.env.DEBUG_MODE === 'true';
@@ -446,29 +444,29 @@ class YouTubeUtils {
         return utils.formatDuration(seconds);
     }
     /**
-     * Fallback method using yt-dlp (the original working approach)
+     * Fallback method using yt-dlp-exec package (the original working approach)
      * @param {string} url - YouTube video URL
      * @returns {Promise<Object>} Video information
      */
     async getVideoInfoWithYtDlp(url) {
-        console.log(`🎥 [YTDLP DEBUG] Using yt-dlp fallback for: ${url}`);
+        console.log(`🎥 [YTDLP DEBUG] Using yt-dlp-exec package for: ${url}`);
         
         try {
-            // Use yt-dlp to get video info as JSON
-            const command = `yt-dlp --dump-json --no-download "${url}"`;
-            console.log(`🎥 [YTDLP DEBUG] Executing: ${command}`);
+            // Use yt-dlp-exec to get video info as JSON
+            console.log(`🎥 [YTDLP DEBUG] Calling ytDlpExec with dump-json...`);
             
-            const { stdout, stderr } = await execAsync(command, { 
-                timeout: 30000,
-                maxBuffer: 1024 * 1024 * 5 // 5MB buffer
+            const videoData = await ytDlpExec(url, {
+                dumpSingleJson: true,
+                noDownload: true,
+                skipDownload: true,
+                timeout: 30000
             });
             
-            if (stderr) {
-                console.log(`🎥 [YTDLP DEBUG] stderr (may be warnings):`, stderr);
-            }
+            console.log(`🎥 [YTDLP DEBUG] yt-dlp-exec data received successfully`);
             
-            const videoData = JSON.parse(stdout);
-            console.log(`🎥 [YTDLP DEBUG] Raw yt-dlp data received`);
+            if (!videoData) {
+                throw new Error('No data returned from yt-dlp-exec');
+            }
             
             const result = {
                 title: videoData.title || 'Unknown Title',
@@ -480,12 +478,12 @@ class YouTubeUtils {
                 uploadDate: videoData.upload_date || null
             };
             
-            console.log(`🎥 [YTDLP DEBUG] ✅ Processed yt-dlp result:`, result);
+            console.log(`🎥 [YTDLP DEBUG] ✅ Processed yt-dlp-exec result:`, result);
             return result;
             
         } catch (error) {
-            console.log(`🎥 [YTDLP DEBUG] ❌ yt-dlp failed:`, error.message);
-            throw new Error(`yt-dlp fallback failed: ${error.message}`);
+            console.log(`🎥 [YTDLP DEBUG] ❌ yt-dlp-exec failed:`, error.message);
+            throw new Error(`yt-dlp-exec fallback failed: ${error.message}`);
         }
     }
 }

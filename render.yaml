@@ -4,9 +4,7 @@ services:
     env: node
     plan: free
     buildCommand: |
-      echo "=== Installing yt-dlp for YouTube functionality ==="
-      pip install yt-dlp
-      echo "=== Installing Node.js dependencies ==="
+      echo "=== Installing Node.js dependencies (including yt-dlp-exec) ==="
       npm ci --only=production --no-audit --no-fund
       echo "=== Build completed successfully ==="
     startCommand: node index.js
@@ -19,8 +17,6 @@ services:
         value: true
       - key: YTDL_NO_UPDATE
         value: true
-      - key: PATH
-        value: /opt/render/project/.render/python/bin:/usr/local/bin:/usr/bin:/bin
     healthCheckPath: /
     autoDeploy: true
     runtime: node
