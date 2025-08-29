@@ -164,7 +164,7 @@ client.on('interactionCreate', async interaction => {
             // Handle music search button from bound channel
             if (interaction.customId === 'music_search') {
                 try {
-                    // Create a modal for search input
+                    // Create a modal for search input - PRODUCTION OPTIMIZED
                     const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
                     
                     const modal = new ModalBuilder()
@@ -182,13 +182,25 @@ client.on('interactionCreate', async interaction => {
                     const firstActionRow = new ActionRowBuilder().addComponents(searchInput);
                     modal.addComponents(firstActionRow);
 
-                    return await interaction.showModal(modal);
-                } catch (error) {
-                    console.log('Error showing search modal:', error.message);
-                    return await interaction.reply({
-                        content: '❌ Failed to open search interface. Please try again.',
-                        flags: MessageFlags.Ephemeral
+                    // PRODUCTION FIX: Add immediate return without await to prevent timing issues
+                    interaction.showModal(modal).catch(modalError => {
+                        console.log('Modal show failed in production:', modalError.message);
+                        // Don't try to reply here - interaction might be consumed
                     });
+                    return; // Exit immediately to prevent double handling
+                } catch (error) {
+                    console.log('Error creating search modal:', error.message);
+                    // Only reply if interaction hasn't been consumed
+                    if (!interaction.replied && !interaction.deferred) {
+                        try {
+                            return await interaction.reply({
+                                content: '❌ Failed to open search interface. Please try the `/search` command instead.',
+                                flags: MessageFlags.Ephemeral
+                            });
+                        } catch (replyError) {
+                            console.log('Could not reply to modal error:', replyError.message);
+                        }
+                    }
                 }
             }
 
