@@ -119,14 +119,11 @@ client.on('interactionCreate', async interaction => {
 
             // Safe interaction response - check state before responding
             try {
-                if (interaction.replied) {
-                    // Interaction already replied to - do nothing
-                    debugLog('Interaction already replied to, skipping error response');
-                } else if (interaction.deferred) {
-                    // Interaction was deferred - use followUp
-                    await interaction.followUp(errorMessage);
+                if (interaction.replied || interaction.deferred) {
+                    // Interaction already handled - do nothing to avoid double acknowledgment
+                    debugLog('Interaction already handled, skipping error response');
                 } else {
-                    // Interaction not yet responded to - use reply
+                    // Interaction not yet responded to - use reply (safest option)
                     await interaction.reply(errorMessage);
                 }
             } catch (responseError) {

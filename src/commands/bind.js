@@ -10,10 +10,13 @@ module.exports = {
         const guildId = interaction.guild.id;
         const channelId = interaction.channel.id;
         
-        // IMMEDIATELY defer to prevent timeout
-        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-        
         try {
+            // IMMEDIATE reply instead of defer (faster for Discord API)
+            await interaction.reply({ 
+                content: '🔄 Setting up music control panel...', 
+                flags: MessageFlags.Ephemeral 
+            });
+            
             // Store the binding information first (fast operation)
             if (!interaction.client.musicBindings) {
                 interaction.client.musicBindings = new Map();
@@ -30,7 +33,7 @@ module.exports = {
                 messageId: null
             });
 
-            // Quick cleanup (limit to 10 messages max to stay fast)
+            // Quick cleanup (limit to 5 messages max to stay fast)
             try {
                 const messages = await interaction.channel.messages.fetch({ limit: 10 });
                 const deletePromises = [];
