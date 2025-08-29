@@ -167,6 +167,15 @@ module.exports = {
 
     async handleSelection(interaction, client, customId) {
         console.log(`🔍 [SEARCH DEBUG] Button clicked: ${customId}`);
+        
+        // IMMEDIATE ACKNOWLEDGMENT to prevent timeout
+        try {
+            await interaction.deferUpdate();
+        } catch (error) {
+            console.log('🔍 [SEARCH DEBUG] Could not defer interaction:', error.message);
+            return;
+        }
+        
         const parts = customId.split('_');
         const sessionId = parts.slice(1, -1).join('_');
         const resultIndex = parseInt(parts[parts.length - 1]);
@@ -178,9 +187,9 @@ module.exports = {
         if (!session) {
             console.log(`🔍 [SEARCH DEBUG] Session not found! Available: ${Array.from(client.searchSessions?.keys() || []).join(', ')}`);
             try {
-                return await interaction.reply({
+                return await interaction.editReply({
                     content: '❌ Search session expired. Please search again.',
-                    flags: MessageFlags.Ephemeral
+                    components: []
                 });
             } catch (error) {
                 console.log('🧹 [SEARCH DEBUG] Could not reply about expired session:', error.message);
@@ -189,17 +198,17 @@ module.exports = {
         }
 
         if (session.userId !== interaction.user.id) {
-            return interaction.reply({
+            return interaction.editReply({
                 content: '❌ This is not your search session!',
-                ephemeral: true
+                components: []
             });
         }
 
         const selectedResult = session.results[resultIndex];
         if (!selectedResult) {
-            return interaction.reply({
+            return interaction.editReply({
                 content: '❌ Invalid selection!',
-                ephemeral: true
+                components: []
             });
         }
 

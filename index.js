@@ -165,7 +165,7 @@ client.on('interactionCreate', async interaction => {
                     const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
                     
                     const modal = new ModalBuilder()
-                        .setCustomId('music_search_modal')
+                        .setCustomId('search_modal')
                         .setTitle('🔍 Search for Music');
 
                     const searchInput = new TextInputBuilder()
@@ -449,7 +449,7 @@ client.on('interactionCreate', async interaction => {
     
     // Handle modal submissions - optimized for speed
     else if (interaction.isModalSubmit()) {
-        if (interaction.customId === 'music_search_modal') {
+        if (interaction.customId === 'search_modal') {
             const query = interaction.fields.getTextInputValue('search_query');
             
             // Direct modal handling for better performance
@@ -516,60 +516,6 @@ client.on('interactionCreate', async interaction => {
                     });
                 } catch (editError) {
                     console.log('Could not edit modal reply:', editError.message);
-                }
-            }
-        } else if (interaction.customId === 'search_modal') {
-            // Handle regular /search command modal
-            const query = interaction.fields.getTextInputValue('search_query');
-            
-            try {
-                await interaction.deferReply();
-                
-                const searchCommand = interaction.client.commands.get('search');
-                if (searchCommand) {
-                    const results = await searchCommand.searchMusic(query);
-                    
-                    if (results.length === 0) {
-                        return await interaction.editReply({
-                            content: `❌ No results found for: **${query}**`
-                        });
-                    }
-
-                    // Same optimized logic as above
-                    if (!interaction.client.searchSessions) {
-                        interaction.client.searchSessions = new Map();
-                    }
-
-                    const sessionId = `${interaction.user.id}_${Date.now()}`;
-                    interaction.client.searchSessions.set(sessionId, {
-                        userId: interaction.user.id,
-                        query: query,
-                        results: results,
-                        currentPage: 0,
-                        timestamp: Date.now()
-                    });
-
-                    const embed = await searchCommand.createSearchEmbed(results, query, 0, results.length);
-                    const pageResults = results.slice(0, 3);
-                    const buttonRows = searchCommand.createSearchButtons(pageResults, sessionId, 0, results.length);
-
-                    await interaction.editReply({
-                        embeds: [embed],
-                        components: buttonRows
-                    });
-                } else {
-                    await interaction.editReply({
-                        content: '❌ Search command not available.'
-                    });
-                }
-            } catch (error) {
-                console.log('Search modal error:', error.message);
-                try {
-                    await interaction.editReply({
-                        content: `❌ Search failed: ${error.message}`
-                    });
-                } catch (editError) {
-                    console.log('Could not edit search modal reply:', editError.message);
                 }
             }
         }
