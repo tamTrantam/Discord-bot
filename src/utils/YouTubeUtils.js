@@ -90,7 +90,41 @@ class YouTubeUtils {
             
             // Handle specific YouTube API errors
             if (error.message.includes('410') || error.message.includes('Status code: 410')) {
-                throw new Error('Video is unavailable or has been removed from YouTube');
+                console.log(`🎥 [YOUTUBE DEBUG] 410 error - trying alternative approach...`);
+                
+                // Try with different options for region-blocked content
+                try {
+                    console.log(`🎥 [YOUTUBE DEBUG] Retrying with alternate options...`);
+                    const retryInfo = await ytdl.getInfo(url, { 
+                        requestOptions: { 
+                            headers: {
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                            }
+                        }
+                    });
+                    
+                    if (retryInfo && retryInfo.videoDetails) {
+                        console.log(`🎥 [YOUTUBE DEBUG] ✅ Retry successful!`);
+                        const videoDetails = retryInfo.videoDetails;
+                        
+                        const result = {
+                            title: videoDetails.title || 'Unknown Title',
+                            duration: parseInt(videoDetails.lengthSeconds) || 0,
+                            uploader: videoDetails.author?.name || 'Unknown Artist',
+                            url: url,
+                            thumbnail: videoDetails.thumbnails?.[0]?.url || null,
+                            viewCount: parseInt(videoDetails.viewCount) || 0,
+                            uploadDate: videoDetails.publishDate || null
+                        };
+                        
+                        console.log(`🎥 [YOUTUBE DEBUG] ✅ Retry result:`, result);
+                        return result;
+                    }
+                } catch (retryError) {
+                    console.log(`🎥 [YOUTUBE DEBUG] Retry also failed:`, retryError.message);
+                }
+                
+                throw new Error('Video is unavailable or region-blocked on this server');
             } else if (error.message.includes('403') || error.message.includes('Status code: 403')) {
                 throw new Error('Video is private or restricted');
             } else if (error.message.includes('404') || error.message.includes('Status code: 404')) {

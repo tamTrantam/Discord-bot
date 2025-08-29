@@ -216,8 +216,20 @@ module.exports = {
 
             } catch (error) {
                 console.error('Error processing song:', error);
+                
+                // Provide specific error messages based on the error type
+                let errorMessage = '❌ Failed to process the song. Please try again or use a different URL.';
+                
+                if (error.message.includes('region-blocked') || error.message.includes('Status code: 410')) {
+                    errorMessage = '❌ **Video unavailable**: This video is region-blocked or unavailable on our servers.\n\n💡 **Try:**\n• A different video by the same artist\n• Searching instead of using direct links\n• Using `/search` to find alternatives';
+                } else if (error.message.includes('private') || error.message.includes('Status code: 403')) {
+                    errorMessage = '❌ **Video is private or restricted**. Please try a different video.';
+                } else if (error.message.includes('not found') || error.message.includes('Status code: 404')) {
+                    errorMessage = '❌ **Video not found**. The video may have been deleted or the URL is incorrect.';
+                }
+                
                 await interaction.editReply({
-                    content: '❌ Failed to process the song. Please try again or use a different URL.'
+                    content: errorMessage
                 });
             }
 
