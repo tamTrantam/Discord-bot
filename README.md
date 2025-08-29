@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Discord Music Bot - yt-dlp Edition 🎵
 
 A modern Discord music bot that uses **yt-dlp** for reliable YouTube audio streaming, bypassing the 2025 YouTube API restrictions that affect traditional Node.js libraries.
@@ -146,3 +147,6 @@ Contributions are welcome! This bot represents a modern approach to Discord musi
 ---
 
 **Note**: This bot was created in response to the 2025 YouTube API restrictions that broke all traditional Node.js YouTube libraries. It demonstrates that yt-dlp + subprocess approach is the current working standard for YouTube content extraction.
+=======
+#Version 1.0
+>>>>>>> 087a8afdd625db7481c922bc08a4cc7608d262be

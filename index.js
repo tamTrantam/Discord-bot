@@ -1,0 +1,551 @@
+const { Client, GatewayIntentBits, Collection, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, MessageFlags } = require('discord.js');
+const { joinVoiceChannel } = require('@discordjs/voice');            // Map music_ prefixed buttons to their regular counterparts
+            const buttonMappings = {
+                'music_play_pause': 'toggle_playback',
+                'music_toggle_playback': 'toggle_playback',
+                'music_skip': 'skip_song',
+                'music_stop': 'stop_music',
+                'music_shuffle': 'shuffle_queue',
+                'music_loop': 'toggle_loop',
+                'music_clear': 'clear_queue',
+                'music_volume_up': 'volume_up',
+                'music_volume_down': 'volume_down'
+            };
+const fs = require('fs');
+const path = require('path');
+require('dotenv').config();
+
+// Debug mode from environment
+const DEBUG_MODE = process.env.DEBUG_MODE === 'true';
+
+// Debug logging function
+function debugLog(message, data = null) {
+    if (DEBUG_MODE) {
+        const timestamp = new Date().toISOString();
+        console.log(`🐛 [DEBUG ${timestamp}] ${message}`);
+        if (data) {
+            console.log('📊 Data:', JSON.stringify(data, null, 2));
+        }
+    }
+}
+
+// Create Discord client with necessary intents
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildVoiceStates,
+    ],
+});
+
+// Add debug logging to client
+client.debugLog = debugLog;
+
+// Initialize collections for commands and music queues
+client.commands = new Collection();
+client.musicQueues = new Collection();
+client.musicBindings = new Map();
+client.searchSessions = new Map();
+client.updateIntervals = new Map();
+
+// Load command files
+const commandsPath = path.join(__dirname, 'src', 'commands');
+const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+
+for (const file of commandFiles) {
+    const filePath = path.join(commandsPath, file);
+    const command = require(filePath);
+    
+    if ('data' in command && 'execute' in command) {
+        client.commands.set(command.data.name, command);
+        console.log(`✅ Loaded command: ${command.data.name}`);
+    } else {
+        console.log(`⚠️ Command at ${filePath} is missing required "data" or "execute" property.`);
+    }
+}
+
+// Load event files
+const eventsPath = path.join(__dirname, 'src', 'events');
+const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
+
+for (const file of eventFiles) {
+    const filePath = path.join(eventsPath, file);
+    const event = require(filePath);
+    
+    if (event.once) {
+        client.once(event.name, (...args) => event.execute(...args));
+    } else {
+        client.on(event.name, (...args) => event.execute(...args));
+    }
+    console.log(`✅ Loaded event: ${event.name}`);
+}
+
+// Handle command interactions
+client.on('interactionCreate', async interaction => {
+    // Handle slash commands
+    if (interaction.isChatInputCommand()) {
+        const command = interaction.client.commands.get(interaction.commandName);
+
+        if (!command) {
+            console.error(`No command matching ${interaction.commandName} was found.`);
+            debugLog(`Command not found: ${interaction.commandName}`, {
+                user: interaction.user.tag,
+                guild: interaction.guild?.name,
+                channel: interaction.channel?.name
+            });
+            return;
+        }
+
+        debugLog(`Executing command: ${interaction.commandName}`, {
+            user: interaction.user.tag,
+            guild: interaction.guild?.name,
+            channel: interaction.channel?.name,
+            options: interaction.options.data
+        });
+
+        const startTime = Date.now();
+
+        try {
+            await command.execute(interaction);
+            
+            const executionTime = Date.now() - startTime;
+            debugLog(`Command executed successfully in ${executionTime}ms: ${interaction.commandName}`);
+            
+        } catch (error) {
+            const executionTime = Date.now() - startTime;
+            console.error(`Error executing command ${interaction.commandName} (${executionTime}ms):`, error);
+            debugLog(`Command execution failed: ${interaction.commandName}`, {
+                error: error.message,
+                stack: error.stack,
+                executionTime
+            });
+            
+            const errorMessage = {
+                content: DEBUG_MODE ? 
+                    `❌ Error: ${error.message}\n\`\`\`${error.stack?.slice(0, 500)}...\`\`\`` :
+                    'There was an error while executing this command!',
+                ephemeral: true
+            };
+
+            if (interaction.replied || interaction.deferred) {
+                await interaction.followUp(errorMessage);
+            } else {
+                await interaction.reply(errorMessage);
+            }
+        }
+    }
+    
+    // Handle button interactions - optimized for speed
+    else if (interaction.isButton()) {
+        debugLog(`Button interaction: ${interaction.customId}`, {
+            user: interaction.user.tag,
+            guild: interaction.guild?.name,
+            channel: interaction.channel?.name
+        });
+
+        try {
+            // Fast routing for search interactions
+            if (interaction.customId.startsWith('search_')) {
+                const searchCommand = interaction.client.commands.get('search');
+                if (searchCommand) {
+                    return searchCommand.handleSearchInteraction(interaction, interaction.client, interaction.customId);
+                }
+            }
+
+            // Handle music search button from bound channel
+            if (interaction.customId === 'music_search') {
+                try {
+                    // Create a modal for search input
+                    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+                    
+                    const modal = new ModalBuilder()
+                        .setCustomId('music_search_modal')
+                        .setTitle('🔍 Search for Music');
+
+                    const searchInput = new TextInputBuilder()
+                        .setCustomId('search_query')
+                        .setLabel('Song name, artist, or keywords')
+                        .setStyle(TextInputStyle.Short)
+                        .setPlaceholder('e.g. "Bohemian Rhapsody Queen" or "relaxing piano music"')
+                        .setRequired(true)
+                        .setMaxLength(100);
+
+                    const firstActionRow = new ActionRowBuilder().addComponents(searchInput);
+                    modal.addComponents(firstActionRow);
+
+                    return await interaction.showModal(modal);
+                } catch (error) {
+                    console.log('Error showing search modal:', error.message);
+                    return await interaction.reply({
+                        content: '❌ Failed to open search interface. Please try again.',
+                        ephemeral: true
+                    });
+                }
+            }
+
+            const guildId = interaction.guild.id;
+            const musicQueue = interaction.client.musicQueues.get(guildId);
+
+            // Check if user is in a voice channel for music controls
+            const musicControls = [
+                'music_play_pause', 'music_toggle_playback', 'toggle_playback', 'music_skip', 'skip_song', 
+                'music_stop', 'stop_music', 'music_shuffle', 'shuffle_queue', 
+                'music_loop', 'toggle_loop', 'music_clear', 'clear_queue',
+                'music_volume_up', 'music_volume_down', 'volume_up', 'volume_down',
+                'music_queue', 'music_nowplaying'
+            ];
+
+            if (musicControls.includes(interaction.customId)) {
+                if (!interaction.member.voice.channel) {
+                    return interaction.reply({
+                        content: '❌ You must be in a voice channel to control music!',
+                        ephemeral: true
+                    });
+                }
+
+                if (!musicQueue) {
+                    return interaction.reply({
+                        content: '❌ No active music session found!',
+                        ephemeral: true
+                    });
+                }
+
+                // Check if user is in the same voice channel as the bot
+                if (musicQueue.voiceChannel && musicQueue.voiceChannel.id !== interaction.member.voice.channel.id) {
+                    return interaction.reply({
+                        content: '❌ You must be in the same voice channel as the bot!',
+                        ephemeral: true
+                    });
+                }
+            }
+
+            // Map music_ prefixed buttons to their regular counterparts
+            const buttonMap = {
+                'music_toggle_playback': 'toggle_playback',
+                'music_skip': 'skip_song',
+                'music_stop': 'stop_music',
+                'music_shuffle': 'shuffle_queue',
+                'music_loop': 'toggle_loop',
+                'music_clear': 'clear_queue',
+                'music_volume_up': 'volume_up',
+                'music_volume_down': 'volume_down'
+            };
+
+            const actualCustomId = buttonMap[interaction.customId] || interaction.customId;
+
+            switch (actualCustomId) {
+                case 'queue_refresh':
+                    // Re-run the queue command
+                    const queueCommand = interaction.client.commands.get('queue');
+                    if (queueCommand) {
+                        await queueCommand.execute(interaction);
+                    }
+                    break;
+
+                case 'toggle_playback':
+                    if (musicQueue.isPlaying) {
+                        musicQueue.pause();
+                        await interaction.reply({
+                            content: '⏸️ Music paused!',
+                            ephemeral: true
+                        });
+                    } else {
+                        musicQueue.resume();
+                        await interaction.reply({
+                            content: '▶️ Music resumed!',
+                            ephemeral: true
+                        });
+                    }
+                    break;
+
+                case 'skip_song':
+                    if (musicQueue.songs.length > 1) {
+                        const currentSong = musicQueue.songs[0];
+                        musicQueue.skip();
+                        await interaction.reply({
+                            content: `⏭️ Skipped: **${currentSong.title}**`,
+                            ephemeral: true
+                        });
+                    } else {
+                        await interaction.reply({
+                            content: '❌ No more songs in queue to skip!',
+                            ephemeral: true
+                        });
+                    }
+                    break;
+
+                case 'stop_music':
+                    musicQueue.stop();
+                    await interaction.reply({
+                        content: '⏹️ Music stopped and queue cleared!',
+                        ephemeral: true
+                    });
+                    break;
+
+                case 'shuffle_queue':
+                    if (musicQueue.songs.length > 2) {
+                        musicQueue.shuffle();
+                        await interaction.reply({
+                            content: '🔀 Queue shuffled!',
+                            ephemeral: true
+                        });
+                    } else {
+                        await interaction.reply({
+                            content: '❌ Need at least 2 songs in queue to shuffle!',
+                            ephemeral: true
+                        });
+                    }
+                    break;
+
+                case 'toggle_loop':
+                    musicQueue.setLoop(!musicQueue.loop);
+                    await interaction.reply({
+                        content: `🔁 Loop ${musicQueue.loop ? 'enabled' : 'disabled'}!`,
+                        ephemeral: true
+                    });
+                    break;
+
+                case 'clear_queue':
+                    if (musicQueue.songs.length > 1) {
+                        const clearedCount = musicQueue.songs.length - 1;
+                        musicQueue.clear();
+                        await interaction.reply({
+                            content: `🗑️ Cleared ${clearedCount} songs from queue!`,
+                            ephemeral: true
+                        });
+                    } else {
+                        await interaction.reply({
+                            content: '❌ Queue is already empty!',
+                            ephemeral: true
+                        });
+                    }
+                    break;
+
+                case 'volume_menu':
+                    await interaction.reply({
+                        content: `🔊 Current volume: **${musicQueue.volume}%**\n` +
+                                `Use \`/volume\` command to adjust volume (0-100).`,
+                        ephemeral: true
+                    });
+                    break;
+
+                case 'volume_up':
+                    const newVolumeUp = Math.min(100, musicQueue.volume + 10);
+                    musicQueue.setVolume(newVolumeUp);
+                    await interaction.reply({
+                        content: `🔊 Volume increased to **${newVolumeUp}%**`,
+                        ephemeral: true
+                    });
+                    break;
+
+                case 'volume_down':
+                    const newVolumeDown = Math.max(0, musicQueue.volume - 10);
+                    musicQueue.setVolume(newVolumeDown);
+                    await interaction.reply({
+                        content: `🔉 Volume decreased to **${newVolumeDown}%**`,
+                        ephemeral: true
+                    });
+                    break;
+
+                case 'music_queue':
+                    // Show queue using the queue command
+                    const queueCmd = interaction.client.commands.get('queue');
+                    if (queueCmd) {
+                        await queueCmd.execute(interaction);
+                    } else {
+                        await interaction.reply({
+                            content: '❌ Queue command not available.',
+                            ephemeral: true
+                        });
+                    }
+                    break;
+
+                case 'music_nowplaying':
+                    // Show now playing using the nowplaying command
+                    const nowPlayingCmd = interaction.client.commands.get('nowplaying');
+                    if (nowPlayingCmd) {
+                        await nowPlayingCmd.execute(interaction);
+                    } else {
+                        await interaction.reply({
+                            content: '❌ Now playing command not available.',
+                            ephemeral: true
+                        });
+                    }
+                    break;
+
+                default:
+                    await interaction.reply({
+                        content: '❌ Unknown button interaction!',
+                        ephemeral: true
+                    });
+            }
+
+            // Update control panel if bound (for music controls)
+            if (musicControls.includes(interaction.customId)) {
+                const bindCommand = interaction.client.commands.get('bind');
+                if (bindCommand) {
+                    setTimeout(() => bindCommand.updateControlPanel(interaction.client, guildId), 1000);
+                }
+            }
+
+        } catch (error) {
+            console.error('Button interaction error:', error);
+            debugLog(`Button interaction failed: ${interaction.customId}`, {
+                error: error.message,
+                stack: error.stack
+            });
+
+            const errorMessage = {
+                content: DEBUG_MODE ? 
+                    `❌ Button Error: ${error.message}` :
+                    'There was an error processing this button!',
+                ephemeral: true
+            };
+
+            if (interaction.replied || interaction.deferred) {
+                await interaction.followUp(errorMessage);
+            } else {
+                await interaction.reply(errorMessage);
+            }
+        }
+    }
+    
+    // Handle modal submissions - optimized for speed
+    else if (interaction.isModalSubmit()) {
+        if (interaction.customId === 'music_search_modal') {
+            const query = interaction.fields.getTextInputValue('search_query');
+            
+            // Direct modal handling for better performance
+            try {
+                // IMMEDIATELY defer to prevent timeout during search
+                await interaction.deferReply();
+                
+                const searchCommand = interaction.client.commands.get('search');
+                if (searchCommand) {
+                    // Perform search directly
+                    const results = await searchCommand.searchMusic(query);
+                    
+                    if (results.length === 0) {
+                        return await interaction.editReply({
+                            content: `❌ No results found for: **${query}**`
+                        });
+                    }
+
+                    // Create session for search results
+                    if (!interaction.client.searchSessions) {
+                        interaction.client.searchSessions = new Map();
+                    }
+
+                    const sessionId = `${interaction.user.id}_${Date.now()}`;
+                    interaction.client.searchSessions.set(sessionId, {
+                        userId: interaction.user.id,
+                        query: query,
+                        results: results,
+                        currentPage: 0,
+                        timestamp: Date.now()
+                    });
+
+                    // Create search interface directly
+                    const embed = await searchCommand.createSearchEmbed(results, query, 0, results.length);
+                    const pageResults = results.slice(0, 3);
+                    const buttonRows = searchCommand.createSearchButtons(pageResults, sessionId, 0, results.length);
+
+                    await interaction.editReply({
+                        embeds: [embed],
+                        components: buttonRows
+                    });
+
+                    console.log(`🔍 [SEARCH] Modal search completed for "${query}" - ${results.length} results`);
+                    
+                    // Start session cleanup
+                    setTimeout(() => {
+                        if (searchCommand.cleanupOldSessions) {
+                            searchCommand.cleanupOldSessions(interaction.client);
+                        }
+                    }, 60000); // Clean up after 1 minute
+                    
+                } else {
+                    await interaction.editReply({
+                        content: '❌ Search command not available.'
+                    });
+                }
+            } catch (error) {
+                console.log('Modal search error:', error.message);
+                try {
+                    await interaction.editReply({
+                        content: `❌ Search failed: ${error.message}`
+                    });
+                } catch (editError) {
+                    console.log('Could not edit modal reply:', editError.message);
+                }
+            }
+        } else if (interaction.customId === 'search_modal') {
+            // Handle regular /search command modal
+            const query = interaction.fields.getTextInputValue('search_query');
+            
+            try {
+                await interaction.deferReply();
+                
+                const searchCommand = interaction.client.commands.get('search');
+                if (searchCommand) {
+                    const results = await searchCommand.searchMusic(query);
+                    
+                    if (results.length === 0) {
+                        return await interaction.editReply({
+                            content: `❌ No results found for: **${query}**`
+                        });
+                    }
+
+                    // Same optimized logic as above
+                    if (!interaction.client.searchSessions) {
+                        interaction.client.searchSessions = new Map();
+                    }
+
+                    const sessionId = `${interaction.user.id}_${Date.now()}`;
+                    interaction.client.searchSessions.set(sessionId, {
+                        userId: interaction.user.id,
+                        query: query,
+                        results: results,
+                        currentPage: 0,
+                        timestamp: Date.now()
+                    });
+
+                    const embed = await searchCommand.createSearchEmbed(results, query, 0, results.length);
+                    const pageResults = results.slice(0, 3);
+                    const buttonRows = searchCommand.createSearchButtons(pageResults, sessionId, 0, results.length);
+
+                    await interaction.editReply({
+                        embeds: [embed],
+                        components: buttonRows
+                    });
+                } else {
+                    await interaction.editReply({
+                        content: '❌ Search command not available.'
+                    });
+                }
+            } catch (error) {
+                console.log('Search modal error:', error.message);
+                try {
+                    await interaction.editReply({
+                        content: `❌ Search failed: ${error.message}`
+                    });
+                } catch (editError) {
+                    console.log('Could not edit search modal reply:', editError.message);
+                }
+            }
+        }
+    }
+});
+
+// Login to Discord
+client.login(process.env.DISCORD_TOKEN)
+    .then(() => {
+        console.log('🤖 Bot logged in successfully!');
+    })
+    .catch(error => {
+        console.error('❌ Failed to login:', error);
+        process.exit(1);
+    });
+
+module.exports = client;
