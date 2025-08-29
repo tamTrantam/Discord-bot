@@ -10,8 +10,11 @@ module.exports = {
         const guildId = interaction.guild.id;
         const channelId = interaction.channel.id;
         
-        // Use modern ephemeral syntax instead of deprecated flags
-        await interaction.deferReply({ ephemeral: true });
+        // Respond immediately to avoid timeout, then do the work
+        await interaction.reply({ 
+            content: '🔄 Setting up music control panel...', 
+            ephemeral: true 
+        });
         
         // Clear the channel first (remove old messages)
         try {
@@ -89,8 +92,9 @@ module.exports = {
             await forceCleanup(interaction.client, guildId);
         }, 2000);
         
-        await interaction.editReply({
+        await interaction.followUp({
             content: '✅ **Music Control Panel** has been bound to this channel!\n🎛️ The control panel will stay updated automatically.',
+            ephemeral: true
         });
     }
 };

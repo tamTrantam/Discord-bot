@@ -9,7 +9,7 @@ module.exports = {
         const sent = await interaction.reply({ 
             content: 'Pinging...', 
             fetchReply: true,
-            flags: 64 // Ephemeral flag - only visible to the user
+            ephemeral: true // Only visible to the user
         });
         
         const ping = sent.createdTimestamp - interaction.createdTimestamp;

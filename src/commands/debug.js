@@ -91,7 +91,7 @@ module.exports = {
         embed.setTimestamp();
         await interaction.reply({ 
             embeds: [embed],
-            flags: 64 // Ephemeral flag - only visible to the user
+            ephemeral: true // Only visible to the user
         });
     },
 
