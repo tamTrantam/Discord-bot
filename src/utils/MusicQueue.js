@@ -264,20 +264,20 @@ class MusicQueue {
             const startTime = Date.now();
             let streamCreated = false;
             
-            // Try yt-dlp for YouTube content
+            // Try Cobalt API for YouTube content
             try {
-                debugLog(`Trying yt-dlp for audio stream`, {
+                debugLog(`Trying Cobalt API for audio stream`, {
                     guild: this.guildId,
                     url: this.currentSong.url
                 });
                 
                 const utils = new YouTubeUtils();
-                const audioUrl = await utils.getAudioUrl(this.currentSong.url);
+                const audioStreamData = await utils.getAudioStream(this.currentSong.url);
                 
-                if (audioUrl) {
-                    debugLog(`Got audio URL from yt-dlp`);
+                if (audioStreamData && audioStreamData.url) {
+                    debugLog(`Got audio URL from Cobalt API`);
                     
-                    const response = await fetch(audioUrl, {
+                    const response = await fetch(audioStreamData.url, {
                         headers: {
                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                             'Referer': 'https://www.youtube.com/'
@@ -289,16 +289,27 @@ class MusicQueue {
                             inputType: 'arbitrary',
                         });
                         streamCreated = true;
-                        debugLog(`Successfully created audio stream with yt-dlp`);
+                        debugLog(`Successfully created audio stream with Cobalt API`);
+                        
+                        // Update current song with rich metadata if not already set
+                        if (!this.currentSong.uploader && audioStreamData.uploader) {
+                            this.currentSong.uploader = audioStreamData.uploader;
+                        }
+                        if (!this.currentSong.thumbnail && audioStreamData.thumbnail) {
+                            this.currentSong.thumbnail = audioStreamData.thumbnail;
+                        }
                     }
+                } else if (audioStreamData && audioStreamData.error) {
+                    debugLog(`Cobalt API returned error: ${audioStreamData.error}`);
+                    throw new Error(audioStreamData.error);
                 }
             } catch (error) {
-                debugLog(`yt-dlp audio stream failed: ${error.message}`);
+                debugLog(`Cobalt API audio stream failed: ${error.message}`);
             }
 
             if (!streamCreated) {
                 const executionTime = Date.now() - startTime;
-                throw new Error(`Audio streaming failed after ${executionTime}ms`);
+                throw new Error(`Cobalt API streaming failed after ${executionTime}ms`);
             }
 
             this.player.play(audioResource);

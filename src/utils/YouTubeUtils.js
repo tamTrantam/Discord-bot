@@ -1,5 +1,5 @@
-const ytdl = require('@distube/ytdl-core');
 const YouTube = require('youtube-sr').default;
+const axios = require('axios');
 
 // Debug mode from environment
 const DEBUG_MODE = process.env.DEBUG_MODE === 'true';
@@ -18,11 +18,11 @@ function debugLog(message, data = null) {
 class YouTubeUtils {
     constructor() {
         this.debug = debugLog;
-        this.currentMethod = '@distube/ytdl-core';
+        this.currentMethod = 'cobalt-api';
     }
 
     /**
-     * Get video information using @distube/ytdl-core
+     * Get video information using Cobalt API
      * @param {string} url - YouTube video URL
      * @returns {Promise<Object>} Video information
      */
@@ -41,66 +41,51 @@ class YouTubeUtils {
                 throw new Error('Invalid YouTube URL');
             }
             
-            // Use @distube/ytdl-core with enhanced anti-bot protection
-            console.log(`🎥 [YOUTUBE DEBUG] Calling ytdl.getInfo with anti-bot protection...`);
+            // Use Cobalt API for reliable YouTube processing
+            console.log(`🎥 [YOUTUBE DEBUG] Calling Cobalt API for video info...`);
             const startTime = Date.now();
             
-            console.log(`🎥 [YOUTUBE DEBUG] Using @distube/ytdl-core with enhanced headers`);
+            console.log(`🎥 [YOUTUBE DEBUG] Using Cobalt API - production-ready solution`);
             
-            // Multiple user agents for rotation
-            const userAgents = [
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0',
-                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-            ];
-            
-            const randomUserAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
-            
-            const videoData = await ytdl.getInfo(url, {
-                requestOptions: {
-                    timeout: 30000,
-                    headers: {
-                        'User-Agent': randomUserAgent,
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                        'Accept-Language': 'en-US,en;q=0.9',
-                        'Accept-Encoding': 'gzip, deflate, br',
-                        'Cache-Control': 'no-cache',
-                        'Pragma': 'no-cache',
-                        'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
-                        'Sec-Ch-Ua-Mobile': '?0',
-                        'Sec-Ch-Ua-Platform': '"Windows"',
-                        'Sec-Fetch-Dest': 'document',
-                        'Sec-Fetch-Mode': 'navigate',
-                        'Sec-Fetch-Site': 'none',
-                        'Sec-Fetch-User': '?1',
-                        'Upgrade-Insecure-Requests': '1'
-                    }
-                }
+            const response = await axios.post('https://api.cobalt.tools/api/json', {
+                url: url,
+                videoQuality: 'max',
+                audioFormat: 'best',
+                audioBitrate: 'max',
+                filenamePattern: 'basic',
+                downloadMode: 'auto'
+            }, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'User-Agent': 'Discord-Music-Bot/1.0'
+                },
+                timeout: 30000
             });
             
             const endTime = Date.now();
-            console.log(`🎥 [YOUTUBE DEBUG] @distube/ytdl-core completed in ${endTime - startTime}ms`);
+            console.log(`🎥 [YOUTUBE DEBUG] Cobalt API completed in ${endTime - startTime}ms`);
             
-            console.log(`🎥 [YOUTUBE DEBUG] Video data retrieved successfully`);
+            console.log(`🎥 [YOUTUBE DEBUG] Cobalt response status:`, response.data?.status);
             
-            if (!videoData || !videoData.videoDetails) {
-                console.log(`🎥 [YOUTUBE DEBUG] ❌ No video data in response`);
-                throw new Error('No video data found');
+            if (!response.data || response.data.status !== 'success') {
+                console.log(`🎥 [YOUTUBE DEBUG] ❌ Cobalt API error:`, response.data?.text || 'Unknown error');
+                throw new Error(`Cobalt API error: ${response.data?.text || 'Unknown error'}`);
             }
             
-            const details = videoData.videoDetails;
-            console.log(`🎥 [YOUTUBE DEBUG] Title: "${details.title}"`);
-            console.log(`🎥 [YOUTUBE DEBUG] Duration: ${details.lengthSeconds}s`);
-            console.log(`🎥 [YOUTUBE DEBUG] Author: ${details.author?.name}`);
+            // Extract video information from Cobalt response
+            // Cobalt provides direct download URLs, we need to get metadata separately
+            const videoInfo = await this.getVideoMetadata(url);
             
             const result = {
-                title: details.title || 'Unknown Title',
-                duration: parseInt(details.lengthSeconds) || 0,
-                uploader: details.author?.name || details.ownerChannelName || 'Unknown Artist',
+                title: videoInfo.title || 'Unknown Title',
+                duration: videoInfo.duration || 0,
+                uploader: videoInfo.uploader || 'Unknown Artist',
                 url: url,
-                thumbnail: details.thumbnails?.[0]?.url || null,
-                viewCount: parseInt(details.viewCount) || 0,
-                uploadDate: details.publishDate || null
+                thumbnail: videoInfo.thumbnail || null,
+                viewCount: videoInfo.viewCount || 0,
+                uploadDate: videoInfo.uploadDate || null,
+                downloadUrl: response.data.url || response.data.urls?.[0] // Cobalt download URL
             };
             
             console.log(`🎥 [YOUTUBE DEBUG] ✅ Video info processed successfully:`, result);
@@ -128,6 +113,69 @@ class YouTubeUtils {
                 throw new Error(`Failed to get video information: ${error.message}`);
             }
         }
+    }
+
+    /**
+     * Get video metadata using youtube-sr for additional info
+     * @param {string} url - YouTube video URL  
+     * @returns {Promise<Object>} Video metadata
+     */
+    async getVideoMetadata(url) {
+        try {
+            const videoId = this.extractVideoId(url);
+            if (!videoId) {
+                throw new Error('Could not extract video ID from URL');
+            }
+            
+            console.log(`🎥 [METADATA DEBUG] Getting metadata for video ID: ${videoId}`);
+            
+            // Use youtube-sr to get video metadata
+            const video = await YouTube.searchOne(`https://youtube.com/watch?v=${videoId}`, 'video');
+            
+            if (!video) {
+                console.log(`🎥 [METADATA DEBUG] No metadata found, using defaults`);
+                return {
+                    title: 'Unknown Title',
+                    duration: 0,
+                    uploader: 'Unknown Artist',
+                    thumbnail: null,
+                    viewCount: 0,
+                    uploadDate: null
+                };
+            }
+            
+            console.log(`🎥 [METADATA DEBUG] Metadata retrieved: ${video.title}`);
+            
+            return {
+                title: video.title || 'Unknown Title',
+                duration: video.duration?.seconds || 0,
+                uploader: video.channel?.name || 'Unknown Artist',
+                thumbnail: video.thumbnail?.url || null,
+                viewCount: video.views || 0,
+                uploadDate: video.uploadedAt || null
+            };
+            
+        } catch (error) {
+            console.log(`🎥 [METADATA DEBUG] Error getting metadata:`, error.message);
+            return {
+                title: 'Unknown Title', 
+                duration: 0,
+                uploader: 'Unknown Artist',
+                thumbnail: null,
+                viewCount: 0,
+                uploadDate: null
+            };
+        }
+    }
+
+    /**
+     * Extract video ID from YouTube URL
+     * @param {string} url - YouTube URL
+     * @returns {string|null} Video ID or null if not found
+     */
+    extractVideoId(url) {
+        const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
+        return match ? match[1] : null;
     }
 
     /**
@@ -233,95 +281,73 @@ class YouTubeUtils {
     }
 
     /**
-     * Get audio stream URL using yt-dlp
+     * Get an audio stream from a YouTube URL using Cobalt API
      * @param {string} url - YouTube video URL
-     * @returns {Promise<string>} Audio stream URL
+     * @returns {Promise<Object>} Object containing audio URL and metadata
      */
     async getAudioStream(url) {
-        console.log(`🎵 [AUDIO DEBUG] === STARTING AUDIO STREAM RETRIEVAL ===`);
-        console.log(`🎵 [AUDIO DEBUG] URL: ${url}`);
-        
         try {
-            debugLog(`Getting audio stream for: ${url}`);
+            console.log(`🎵 [COBALT DEBUG] Processing URL: ${url}`);
             
-            console.log(`🎵 [AUDIO DEBUG] Validating URL for audio stream...`);
-            const isValid = this.validateURL(url);
-            console.log(`🎵 [AUDIO DEBUG] URL validation result: ${isValid}`);
+            // Get metadata first using youtube-sr
+            const metadata = await this.getVideoMetadata(url);
+            console.log(`🎵 [COBALT DEBUG] Got metadata: ${metadata.title}`);
             
-            if (!isValid) {
-                console.log(`🎵 [AUDIO DEBUG] ❌ Invalid URL for audio stream`);
-                throw new Error('Invalid YouTube URL');
-            }
-            
-            // Get audio URL using @distube/ytdl-core with enhanced headers
-            console.log(`🎵 [AUDIO DEBUG] Getting audio URL with @distube/ytdl-core...`);
-            const startTime = Date.now();
-            
-            console.log(`🎵 [AUDIO DEBUG] Using @distube/ytdl-core for audio stream extraction`);
-            
-            // Use same enhanced headers as video info
-            const userAgents = [
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0',
-                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-            ];
-            
-            const randomUserAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
-            
-            const info = await ytdl.getInfo(url, {
-                requestOptions: {
-                    timeout: 30000,
-                    headers: {
-                        'User-Agent': randomUserAgent,
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                        'Accept-Language': 'en-US,en;q=0.9',
-                        'Accept-Encoding': 'gzip, deflate, br',
-                        'Cache-Control': 'no-cache',
-                        'Pragma': 'no-cache',
-                        'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
-                        'Sec-Ch-Ua-Mobile': '?0',
-                        'Sec-Ch-Ua-Platform': '"Windows"',
-                        'Sec-Fetch-Dest': 'document',
-                        'Sec-Fetch-Mode': 'navigate',
-                        'Sec-Fetch-Site': 'none',
-                        'Sec-Fetch-User': '?1',
-                        'Upgrade-Insecure-Requests': '1'
-                    }
-                }
+            // Request audio from Cobalt API
+            const cobaltResponse = await this.axios.post('https://api.cobalt.tools/api/json', {
+                url: url,
+                vCodec: 'h264',
+                vQuality: '720',
+                aFormat: 'mp3',
+                isAudioOnly: true,
+                disableMetadata: false
+            }, {
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                timeout: 30000
             });
             
-            // Find best audio format
-            const audioFormats = ytdl.filterFormats(info.formats, 'audioonly');
-            if (audioFormats.length === 0) {
-                throw new Error('No audio formats available');
+            console.log(`🎵 [COBALT DEBUG] API response status:`, cobaltResponse.data.status);
+            
+            if (cobaltResponse.data.status === 'stream' && cobaltResponse.data.url) {
+                console.log(`🎵 [COBALT DEBUG] Got audio stream URL successfully`);
+                
+                return {
+                    url: cobaltResponse.data.url,
+                    title: metadata.title,
+                    duration: metadata.duration,
+                    uploader: metadata.uploader,
+                    thumbnail: metadata.thumbnail,
+                    format: {
+                        container: 'mp3',
+                        audioCodec: 'mp3'
+                    }
+                };
+            } else {
+                throw new Error(`Cobalt API error: ${cobaltResponse.data.text || 'Unknown error'}`);
             }
-            
-            // Prefer m4a or webm audio
-            const bestAudio = audioFormats.find(f => f.container === 'm4a') || 
-                             audioFormats.find(f => f.container === 'webm') || 
-                             audioFormats[0];
-                             
-            const audioUrl = bestAudio.url;
-            
-            const endTime = Date.now();
-            console.log(`🎵 [AUDIO DEBUG] @distube/ytdl-core audio URL retrieved in ${endTime - startTime}ms`);
-            
-            if (!audioUrl) {
-                console.log(`🎵 [AUDIO DEBUG] ❌ No audio URL returned`);
-                throw new Error('No audio URL available');
-            }
-            
-            console.log(`🎵 [AUDIO DEBUG] ✅ Audio stream URL obtained successfully`);
-            debugLog('Audio stream URL obtained successfully');
-            return audioUrl;
             
         } catch (error) {
-            console.log(`🎵 [AUDIO DEBUG] ❌ === ERROR IN AUDIO STREAM RETRIEVAL ===`);
-            console.log(`🎵 [AUDIO DEBUG] Error message: ${error.message}`);
-            console.log(`🎵 [AUDIO DEBUG] Error stack:`, error.stack);
-            console.log(`🎵 [AUDIO DEBUG] URL that failed: ${url}`);
+            console.error('🎵 [AUDIO STREAM ERROR]:', error.message);
             
-            debugLog('Error getting audio stream', { error: error.message, url });
+            // Return fallback info for testing
+            if (error.message.includes('timeout') || error.message.includes('ENOTFOUND')) {
+                const metadata = await this.getVideoMetadata(url);
+                console.log(`🎵 [FALLBACK] Using metadata only for: ${metadata.title}`);
+                
+                return {
+                    url: null, // Will indicate no audio stream available
+                    title: metadata.title,
+                    duration: metadata.duration, 
+                    uploader: metadata.uploader,
+                    thumbnail: metadata.thumbnail,
+                    format: null,
+                    error: 'Audio stream temporarily unavailable'
+                };
+            }
+            
             throw new Error(`Failed to get audio stream: ${error.message}`);
         }
     }
@@ -372,8 +398,16 @@ class YouTubeUtils {
                 throw new Error('Invalid YouTube URL');
             }
             
-            // Get the actual streaming URL using yt-dlp
-            return await this.getAudioStream(url);
+            // Get the audio stream data and return just the URL for backward compatibility
+            const audioStreamData = await this.getAudioStream(url);
+            
+            if (audioStreamData && audioStreamData.url) {
+                return audioStreamData.url;
+            } else if (audioStreamData && audioStreamData.error) {
+                throw new Error(audioStreamData.error);
+            } else {
+                throw new Error('No audio URL available');
+            }
             
         } catch (error) {
             debugLog('Error getting audio URL', { error: error.message, url });
