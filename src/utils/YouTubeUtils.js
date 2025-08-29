@@ -59,6 +59,99 @@ class YouTubeUtils {
     }
 
     /**
+     * Check if URL is a YouTube playlist
+     * @param {string} url - URL to check
+     * @returns {boolean} True if URL is a playlist
+     */
+    isPlaylist(url) {
+        try {
+            if (!url || typeof url !== 'string') return false;
+            
+            // Check for playlist indicators in URL
+            const playlistPatterns = [
+                /[?&]list=([a-zA-Z0-9_-]+)/,
+                /playlist\?list=([a-zA-Z0-9_-]+)/,
+                /\/playlist\?list=([a-zA-Z0-9_-]+)/
+            ];
+            
+            return playlistPatterns.some(pattern => pattern.test(url));
+        } catch (error) {
+            debugLog('Error checking if playlist', { error: error.message, url });
+            return false;
+        }
+    }
+
+    /**
+     * Get playlist information (fallback to single video for now)
+     * @param {string} url - Playlist URL
+     * @returns {Promise<Array>} Array of video information
+     */
+    async getPlaylistInfo(url) {
+        try {
+            debugLog(`Getting playlist info for: ${url}`);
+            
+            // For now, treat as single video since ytdl-core doesn't handle playlists directly
+            // This is a temporary solution - would need youtube-dl-exec or similar for full playlist support
+            if (!this.isPlaylist(url)) {
+                const videoInfo = await this.getVideoInfo(url);
+                return [videoInfo];
+            }
+            
+            // Extract video ID from playlist URL and get individual video
+            const videoIdMatch = url.match(/[?&]v=([a-zA-Z0-9_-]+)/);
+            if (videoIdMatch) {
+                const videoUrl = `https://youtube.com/watch?v=${videoIdMatch[1]}`;
+                const videoInfo = await this.getVideoInfo(videoUrl);
+                return [videoInfo];
+            }
+            
+            throw new Error('Playlist processing not fully implemented - extracted single video instead');
+            
+        } catch (error) {
+            debugLog('Error getting playlist info', { error: error.message, url });
+            throw new Error(`Failed to get playlist information: ${error.message}`);
+        }
+    }
+
+    /**
+     * Validate YouTube URL
+     * @param {string} url - URL to validate
+     * @returns {boolean} True if valid YouTube URL
+     */
+    validateURL(url) {
+        try {
+            if (!url || typeof url !== 'string') return false;
+            return ytdl.validateURL(url);
+        } catch (error) {
+            debugLog('Error validating URL', { error: error.message, url });
+            return false;
+        }
+    }
+
+    /**
+     * Format duration from seconds to MM:SS or HH:MM:SS
+     * @param {number} seconds - Duration in seconds
+     * @returns {string} Formatted duration string
+     */
+    formatDuration(seconds) {
+        try {
+            if (!seconds || seconds === 0) return '0:00';
+            
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+            
+            if (hours > 0) {
+                return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }
+            return `${minutes}:${secs.toString().padStart(2, '0')}`;
+        } catch (error) {
+            debugLog('Error formatting duration', { error: error.message, seconds });
+            return '0:00';
+        }
+    }
+
+    /**
      * Get audio stream URL using ytdl-core
      * @param {string} url - YouTube video URL
      * @returns {Promise<string>} Audio stream URL
@@ -137,7 +230,7 @@ class YouTubeUtils {
             
             // For Discord voice, we can return the URL directly
             // ytdl-core will handle the streaming internally
-            debugLog('Audio URL ready for Discord playbook');
+            debugLog('Audio URL ready for Discord playback');
             return url;
             
         } catch (error) {
@@ -147,12 +240,12 @@ class YouTubeUtils {
     }
 
     /**
-     * Check if URL is a valid YouTube URL
+     * Check if URL is a valid YouTube URL (alias for validateURL)
      * @param {string} url - URL to validate
      * @returns {boolean} True if valid YouTube URL
      */
     isValidYouTubeUrl(url) {
-        return ytdl.validateURL(url);
+        return this.validateURL(url);
     }
 
     /**
@@ -189,6 +282,46 @@ class YouTubeUtils {
     static async searchMusic(query, limit = 10) {
         const utils = new YouTubeUtils();
         return utils.searchVideos(query, limit);
+    }
+
+    /**
+     * Static method for playlist checking
+     * @param {string} url - URL to check
+     * @returns {boolean} True if playlist
+     */
+    static isPlaylist(url) {
+        const utils = new YouTubeUtils();
+        return utils.isPlaylist(url);
+    }
+
+    /**
+     * Static method for playlist info
+     * @param {string} url - Playlist URL
+     * @returns {Promise<Array>} Playlist videos
+     */
+    static async getPlaylistInfo(url) {
+        const utils = new YouTubeUtils();
+        return utils.getPlaylistInfo(url);
+    }
+
+    /**
+     * Static method for URL validation
+     * @param {string} url - URL to validate
+     * @returns {boolean} True if valid
+     */
+    static validateURL(url) {
+        const utils = new YouTubeUtils();
+        return utils.validateURL(url);
+    }
+
+    /**
+     * Static method for duration formatting
+     * @param {number} seconds - Duration in seconds
+     * @returns {string} Formatted duration
+     */
+    static formatDuration(seconds) {
+        const utils = new YouTubeUtils();
+        return utils.formatDuration(seconds);
     }
 }
 

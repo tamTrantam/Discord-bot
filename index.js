@@ -1,16 +1,5 @@
 const { Client, GatewayIntentBits, Collection, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, MessageFlags } = require('discord.js');
-const { joinVoiceChannel } = require('@discordjs/voice');            // Map music_ prefixed buttons to their regular counterparts
-            const buttonMappings = {
-                'music_play_pause': 'toggle_playback',
-                'music_toggle_playback': 'toggle_playback',
-                'music_skip': 'skip_song',
-                'music_stop': 'stop_music',
-                'music_shuffle': 'shuffle_queue',
-                'music_loop': 'toggle_loop',
-                'music_clear': 'clear_queue',
-                'music_volume_up': 'volume_up',
-                'music_volume_down': 'volume_down'
-            };
+const { joinVoiceChannel } = require('@discordjs/voice');
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
