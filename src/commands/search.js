@@ -39,35 +39,41 @@ module.exports = {
         console.log(`🔍 [SEARCH] Starting search for: "${query}"`);
         
         try {
-            // Try different yt-dlp paths for different deployment environments
-            const ytdlpPaths = [
-                'yt-dlp',                    // Standard PATH
-                '/usr/local/bin/yt-dlp',     // Common install location
-                '/opt/render/project/.local/bin/yt-dlp', // User local install
-                'python3 -m yt_dlp'         // Python module fallback
+            // Try different yt-dlp methods for different deployment environments
+            const ytdlpMethods = [
+                { cmd: 'yt-dlp', desc: 'Standard PATH binary' },
+                { cmd: '/usr/local/bin/yt-dlp', desc: 'System install location' },
+                { cmd: 'python3 -m yt_dlp', desc: 'Python module' },
+                { cmd: 'python -m yt_dlp', desc: 'Python module (alt)' }
             ];
             
-            let command = null;
-            for (const ytdlpPath of ytdlpPaths) {
+            let workingCommand = null;
+            
+            // Test each method quickly
+            for (const method of ytdlpMethods) {
                 try {
-                    const testCommand = `${ytdlpPath} --version`;
-                    await execPromise(testCommand, { timeout: 5000 });
-                    command = `${ytdlpPath} "ytsearch10:${query}" --get-title --get-url --get-duration --no-playlist --flat-playlist`;
-                    console.log(`🔍 [SEARCH] Using yt-dlp path: ${ytdlpPath}`);
-                    break;
+                    console.log(`🔍 [SEARCH] Testing ${method.desc}: ${method.cmd}`);
+                    const testCommand = `${method.cmd} --version`;
+                    const { stdout } = await execPromise(testCommand, { timeout: 3000 });
+                    if (stdout && stdout.trim()) {
+                        workingCommand = method.cmd;
+                        console.log(`🔍 [SEARCH] ✅ Found working yt-dlp: ${method.desc} (version: ${stdout.trim().split('\n')[0]})`);
+                        break;
+                    }
                 } catch (testError) {
-                    console.log(`🔍 [SEARCH] ${ytdlpPath} not available`);
+                    console.log(`🔍 [SEARCH] ❌ ${method.desc} not available: ${testError.message}`);
                     continue;
                 }
             }
             
-            if (!command) {
-                throw new Error('yt-dlp not found in any expected location');
+            if (!workingCommand) {
+                throw new Error('yt-dlp not found - tried binary and Python module methods');
             }
             
-            console.log(`🔍 [SEARCH] Running command: ${command}`);
+            const searchCommand = `${workingCommand} "ytsearch10:${query}" --get-title --get-url --get-duration --no-playlist --flat-playlist`;
+            console.log(`🔍 [SEARCH] Running search command: ${searchCommand}`);
             
-            const { stdout, stderr } = await execPromise(command, { 
+            const { stdout, stderr } = await execPromise(searchCommand, { 
                 timeout: 20000,
                 maxBuffer: 1024 * 1024 * 2 // 2MB buffer
             });

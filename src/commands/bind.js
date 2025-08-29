@@ -10,7 +10,8 @@ module.exports = {
         const guildId = interaction.guild.id;
         const channelId = interaction.channel.id;
         
-        await interaction.deferReply({ flags: 64 }); // Ephemeral flag
+        // Use modern ephemeral syntax instead of deprecated flags
+        await interaction.deferReply({ ephemeral: true });
         
         // Clear the channel first (remove old messages)
         try {
