@@ -114,7 +114,7 @@ client.on('interactionCreate', async interaction => {
                 content: DEBUG_MODE ? 
                     `❌ Error: ${error.message}\n\`\`\`${error.stack?.slice(0, 500)}...\`\`\`` :
                     'There was an error while executing this command!',
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             };
 
             // Safe interaction response - check state before responding
@@ -187,7 +187,7 @@ client.on('interactionCreate', async interaction => {
                     console.log('Error showing search modal:', error.message);
                     return await interaction.reply({
                         content: '❌ Failed to open search interface. Please try again.',
-                        ephemeral: true
+                        flags: MessageFlags.Ephemeral
                     });
                 }
             }
@@ -208,14 +208,14 @@ client.on('interactionCreate', async interaction => {
                 if (!interaction.member.voice.channel) {
                     return interaction.reply({
                         content: '❌ You must be in a voice channel to control music!',
-                        ephemeral: true
+                        flags: MessageFlags.Ephemeral
                     });
                 }
 
                 if (!musicQueue) {
                     return interaction.reply({
                         content: '❌ No active music session found!',
-                        ephemeral: true
+                        flags: MessageFlags.Ephemeral
                     });
                 }
 
@@ -223,7 +223,7 @@ client.on('interactionCreate', async interaction => {
                 if (musicQueue.voiceChannel && musicQueue.voiceChannel.id !== interaction.member.voice.channel.id) {
                     return interaction.reply({
                         content: '❌ You must be in the same voice channel as the bot!',
-                        ephemeral: true
+                        flags: MessageFlags.Ephemeral
                     });
                 }
             }
@@ -256,13 +256,13 @@ client.on('interactionCreate', async interaction => {
                         musicQueue.pause();
                         await interaction.reply({
                             content: '⏸️ Music paused!',
-                            ephemeral: true
+                            flags: MessageFlags.Ephemeral
                         });
                     } else {
                         musicQueue.resume();
                         await interaction.reply({
                             content: '▶️ Music resumed!',
-                            ephemeral: true
+                            flags: MessageFlags.Ephemeral
                         });
                     }
                     break;
@@ -273,12 +273,12 @@ client.on('interactionCreate', async interaction => {
                         musicQueue.skip();
                         await interaction.reply({
                             content: `⏭️ Skipped: **${currentSong.title}**`,
-                            ephemeral: true
+                            flags: MessageFlags.Ephemeral
                         });
                     } else {
                         await interaction.reply({
                             content: '❌ No more songs in queue to skip!',
-                            ephemeral: true
+                            flags: MessageFlags.Ephemeral
                         });
                     }
                     break;
@@ -287,7 +287,7 @@ client.on('interactionCreate', async interaction => {
                     musicQueue.stop();
                     await interaction.reply({
                         content: '⏹️ Music stopped and queue cleared!',
-                        ephemeral: true
+                        flags: MessageFlags.Ephemeral
                     });
                     break;
 
@@ -296,12 +296,12 @@ client.on('interactionCreate', async interaction => {
                         musicQueue.shuffle();
                         await interaction.reply({
                             content: '🔀 Queue shuffled!',
-                            ephemeral: true
+                            flags: MessageFlags.Ephemeral
                         });
                     } else {
                         await interaction.reply({
                             content: '❌ Need at least 2 songs in queue to shuffle!',
-                            ephemeral: true
+                            flags: MessageFlags.Ephemeral
                         });
                     }
                     break;
@@ -310,7 +310,7 @@ client.on('interactionCreate', async interaction => {
                     musicQueue.setLoop(!musicQueue.loop);
                     await interaction.reply({
                         content: `🔁 Loop ${musicQueue.loop ? 'enabled' : 'disabled'}!`,
-                        ephemeral: true
+                        flags: MessageFlags.Ephemeral
                     });
                     break;
 
@@ -320,12 +320,12 @@ client.on('interactionCreate', async interaction => {
                         musicQueue.clear();
                         await interaction.reply({
                             content: `🗑️ Cleared ${clearedCount} songs from queue!`,
-                            ephemeral: true
+                            flags: MessageFlags.Ephemeral
                         });
                     } else {
                         await interaction.reply({
                             content: '❌ Queue is already empty!',
-                            ephemeral: true
+                            flags: MessageFlags.Ephemeral
                         });
                     }
                     break;
@@ -334,7 +334,7 @@ client.on('interactionCreate', async interaction => {
                     await interaction.reply({
                         content: `🔊 Current volume: **${musicQueue.volume}%**\n` +
                                 `Use \`/volume\` command to adjust volume (0-100).`,
-                        ephemeral: true
+                        flags: MessageFlags.Ephemeral
                     });
                     break;
 
@@ -343,7 +343,7 @@ client.on('interactionCreate', async interaction => {
                     musicQueue.setVolume(newVolumeUp);
                     await interaction.reply({
                         content: `🔊 Volume increased to **${newVolumeUp}%**`,
-                        ephemeral: true
+                        flags: MessageFlags.Ephemeral
                     });
                     break;
 
@@ -352,7 +352,7 @@ client.on('interactionCreate', async interaction => {
                     musicQueue.setVolume(newVolumeDown);
                     await interaction.reply({
                         content: `🔉 Volume decreased to **${newVolumeDown}%**`,
-                        ephemeral: true
+                        flags: MessageFlags.Ephemeral
                     });
                     break;
 
@@ -364,7 +364,7 @@ client.on('interactionCreate', async interaction => {
                     } else {
                         await interaction.reply({
                             content: '❌ Queue command not available.',
-                            ephemeral: true
+                            flags: MessageFlags.Ephemeral
                         });
                     }
                     break;
@@ -377,7 +377,7 @@ client.on('interactionCreate', async interaction => {
                     } else {
                         await interaction.reply({
                             content: '❌ Now playing command not available.',
-                            ephemeral: true
+                            flags: MessageFlags.Ephemeral
                         });
                     }
                     break;
@@ -385,7 +385,7 @@ client.on('interactionCreate', async interaction => {
                 default:
                     await interaction.reply({
                         content: '❌ Unknown button interaction!',
-                        ephemeral: true
+                        flags: MessageFlags.Ephemeral
                     });
             }
 
@@ -408,7 +408,7 @@ client.on('interactionCreate', async interaction => {
                 content: DEBUG_MODE ? 
                     `❌ Button Error: ${error.message}` :
                     'There was an error processing this button!',
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             };
 
             // Safe interaction response - check state before responding

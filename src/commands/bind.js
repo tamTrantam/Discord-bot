@@ -10,79 +10,90 @@ module.exports = {
         const guildId = interaction.guild.id;
         const channelId = interaction.channel.id;
         
-        // Respond immediately to avoid timeout
+        // IMMEDIATE response to prevent timeout - no processing before this!
         await interaction.reply({ 
             content: '🔄 Setting up music control panel...', 
             flags: MessageFlags.Ephemeral
         });
         
-        // Store the binding information first
-        if (!interaction.client.musicBindings) {
-            interaction.client.musicBindings = new Map();
-        }
-        
-        // Clear existing binding and interval for this guild
-        const existingBinding = interaction.client.musicBindings.get(guildId);
-        if (existingBinding && interaction.client.bindingIntervals?.has(guildId)) {
-            clearInterval(interaction.client.bindingIntervals.get(guildId));
-        }
-        
-        interaction.client.musicBindings.set(guildId, {
-            channelId: channelId,
-            messageId: null
-        });
-
-        // Clear the channel first (remove old messages) - but do it quickly
         try {
-            const messages = await interaction.channel.messages.fetch({ limit: 20 });
-            let deleteCount = 0;
+            // Store the binding information first (fast operation)
+            if (!interaction.client.musicBindings) {
+                interaction.client.musicBindings = new Map();
+            }
             
-            for (const message of messages.values()) {
-                // Only delete bot messages to avoid deleting user messages
-                if (message.author.id === interaction.client.user.id) {
-                    try {
-                        await message.delete();
-                        deleteCount++;
-                        // Minimal delay to avoid rate limits
-                        if (deleteCount % 5 === 0) {
-                            await new Promise(resolve => setTimeout(resolve, 100));
-                        }
-                    } catch (deleteError) {
-                        // Ignore individual message deletion errors
+            // Clear existing binding and interval for this guild
+            const existingBinding = interaction.client.musicBindings.get(guildId);
+            if (existingBinding && interaction.client.bindingIntervals?.has(guildId)) {
+                clearInterval(interaction.client.bindingIntervals.get(guildId));
+            }
+            
+            interaction.client.musicBindings.set(guildId, {
+                channelId: channelId,
+                messageId: null
+            });
+
+            // Quick cleanup (limit to 10 messages max to stay fast)
+            try {
+                const messages = await interaction.channel.messages.fetch({ limit: 10 });
+                const deletePromises = [];
+                
+                for (const message of messages.values()) {
+                    // Only delete bot messages
+                    if (message.author.id === interaction.client.user.id) {
+                        deletePromises.push(
+                            message.delete().catch(() => {}) // Ignore individual failures
+                        );
                     }
                 }
+                
+                // Delete in parallel for speed
+                if (deletePromises.length > 0) {
+                    await Promise.allSettled(deletePromises);
+                    console.log(`🧹 [BIND] Cleared ${deletePromises.length} old messages`);
+                }
+            } catch (fetchError) {
+                console.log('🧹 [BIND] Could not fetch messages for cleanup:', fetchError.message);
+            }
+
+            // Create the control panel
+            const controlPanel = await createFancyControlPanel(interaction.client, guildId);
+            const message = await interaction.channel.send(controlPanel);
+            
+            // Store message ID for updates
+            interaction.client.musicBindings.get(guildId).messageId = message.id;
+            
+            // Start periodic updates
+            if (!interaction.client.bindingIntervals) {
+                interaction.client.bindingIntervals = new Map();
             }
             
-            if (deleteCount > 0) {
-                console.log(`🧹 [BIND] Cleared ${deleteCount} old messages before binding`);
+            // Set new interval for updates every 15 seconds
+            const interval = setInterval(async () => {
+                await updateFancyControlPanel(interaction.client, guildId);
+            }, 15000);
+            
+            interaction.client.bindingIntervals.set(guildId, interval);
+            
+            // Success follow-up
+            await interaction.followUp({
+                content: '✅ **Music Control Panel** has been bound to this channel!\n🎛️ The control panel will stay updated automatically.',
+                flags: MessageFlags.Ephemeral
+            });
+            
+        } catch (error) {
+            console.error('Error in bind command:', error);
+            
+            // Safe error response
+            try {
+                await interaction.followUp({
+                    content: `❌ Failed to bind control panel: ${error.message}`,
+                    flags: MessageFlags.Ephemeral
+                });
+            } catch (followUpError) {
+                console.error('Failed to send error follow-up:', followUpError);
             }
-        } catch (fetchError) {
-            console.log('🧹 [BIND] Could not fetch messages for cleanup:', fetchError.message);
         }
-
-        // Create the fancy control panel
-        const controlPanel = await createFancyControlPanel(interaction.client, guildId);
-        const message = await interaction.channel.send(controlPanel);
-        
-        // Store message ID for updates
-        interaction.client.musicBindings.get(guildId).messageId = message.id;
-        
-        // Start periodic updates
-        if (!interaction.client.bindingIntervals) {
-            interaction.client.bindingIntervals = new Map();
-        }
-        
-        // Set new interval for updates every 15 seconds (longer to reduce load)
-        const interval = setInterval(async () => {
-            await updateFancyControlPanel(interaction.client, guildId);
-        }, 15000);
-        
-        interaction.client.bindingIntervals.set(guildId, interval);
-        
-        await interaction.followUp({
-            content: '✅ **Music Control Panel** has been bound to this channel!\n🎛️ The control panel will stay updated automatically.',
-            flags: MessageFlags.Ephemeral
-        });
     }
 };
 
